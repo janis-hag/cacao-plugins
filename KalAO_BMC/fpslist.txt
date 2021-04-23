@@ -1,0 +1,1 @@
+bmc_display	KalAO_BMC.display
