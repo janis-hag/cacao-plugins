@@ -317,12 +317,12 @@ errno_t KalAO_SHWFS__process_RUN()
 	// slopes
 	imsizearray[0] = sizeoutX * 2;
 	imsizearray[1] = sizeoutY;
-	create_image_ID(slopes_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10);
+	create_image_ID(slopes_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0);
 
 	// flux
 	imsizearray[0] = sizeoutX;
 	imsizearray[1] = sizeoutY;
-	create_image_ID(flux_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10);
+	create_image_ID(flux_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0);
 
 	free(imsizearray);
 
