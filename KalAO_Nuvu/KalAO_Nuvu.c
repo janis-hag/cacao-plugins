@@ -525,9 +525,9 @@ errno_t KalAO_Nuvu__acquire_RUN()
 	imsize[0] = width;
 	imsize[1] = height;
 
-	create_image_ID("nuvu_stream", 2, imsize, _DATATYPE_FLOAT, 1, 10);
-	create_image_ID("nuvu_flat", 2, imsize, _DATATYPE_FLOAT, 1, 10);
-	create_image_ID("nuvu_bias", 2, imsize, _DATATYPE_FLOAT, 1, 10);
+	create_image_ID("nuvu_stream", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0);
+	create_image_ID("nuvu_flat", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0);
+	create_image_ID("nuvu_bias", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0);
 
 	imageID flatID = image_ID("nuvu_flat");
 	imageID biasID = image_ID("nuvu_bias");
