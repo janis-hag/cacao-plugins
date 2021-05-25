@@ -20,7 +20,7 @@ project(lib_${LIBNAME}_project)
 # Convention: the main souce file is named <libname>.c
 #
 add_library(${LIBNAME} SHARED ${SOURCEFILES})
-target_link_libraries(${LIBNAME} PUBLIC CLIcore)
+target_link_libraries(${LIBNAME} PUBLIC CLIcore milkZernikePolyn)
 
 install(TARGETS ${LIBNAME} DESTINATION lib)
 install(FILES ${INCLUDEFILES} DESTINATION include/${SRCNAME})
