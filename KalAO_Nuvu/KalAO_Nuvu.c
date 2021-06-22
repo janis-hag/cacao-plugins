@@ -302,7 +302,7 @@ void load_bias_and_flat(PROCESSINFO *processinfo, FUNCTION_PARAMETER_STRUCT *fps
 		printf("File %s is not a valid FITS file\n", biasfile);
 	} else
 	{
-		biastmpID = load_fits(biasfile, "nuvu_bias_tmp", 1);
+		load_fits(biasfile, "nuvu_bias_tmp", 1, &biastmpID);
 
 		if(data.image[biasID].md[0].datatype != data.image[biastmpID].md[0].datatype)
 		{
@@ -311,7 +311,7 @@ void load_bias_and_flat(PROCESSINFO *processinfo, FUNCTION_PARAMETER_STRUCT *fps
 		}
 		else if (data.image[biasID].md[0].nelement != data.image[biastmpID].md[0].nelement)
 		{
-			printf("Wriong size for file %s\n", biasfile);
+			printf("Wrong size for file %s\n", biasfile);
 			biastmpID = -1;
 		}
 	}
@@ -341,7 +341,7 @@ void load_bias_and_flat(PROCESSINFO *processinfo, FUNCTION_PARAMETER_STRUCT *fps
 	}
 	else
 	{
-		flattmpID = load_fits(flatfile, "nuvu_flat_tmp", 1);
+		load_fits(flatfile, "nuvu_flat_tmp", 1, &flattmpID);
 
 		if(data.image[flatID].md[0].datatype != data.image[flattmpID].md[0].datatype)
 		{
