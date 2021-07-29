@@ -314,15 +314,19 @@ errno_t KalAO_SHWFS__process_RUN()
 	// create output arrays
 	uint32_t *imsizearray = (uint32_t*) malloc(sizeof(uint32_t)*2);
 
+    // Identifiers for output streams
+    imageID IDslopes = image_ID(slopes_streamname);
+    imageID IDflux = image_ID(flux_streamname);
+
 	// slopes
 	imsizearray[0] = sizeoutX * 2;
 	imsizearray[1] = sizeoutY;
-	create_image_ID(slopes_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0);
+	create_image_ID(slopes_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &imageID IDslopes);
 
 	// flux
 	imsizearray[0] = sizeoutX;
 	imsizearray[1] = sizeoutY;
-	create_image_ID(flux_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0);
+	create_image_ID(flux_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &imageID IDflux);
 
 	free(imsizearray);
 
@@ -334,9 +338,7 @@ errno_t KalAO_SHWFS__process_RUN()
 
     printf("IDin = %ld\n", (long) IDin);
 
-    // Identifiers for output streams
-    imageID IDslopes = image_ID(slopes_streamname);
-    imageID IDflux = image_ID(flux_streamname);
+
 
     // Notify processinfo that we are entering loop
     processinfo_loopstart(processinfo);
