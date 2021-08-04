@@ -228,9 +228,9 @@ errno_t KalAO_SHWFS__process_RUN()
 	// ===========================
     // ### Connect to FPS
     // ===========================
-    printf("connecting to fps")
+    printf("connecting to fps");
     FPS_CONNECT(data.FPS_name, FPSCONNECT_RUN);
-	printf("connected to fps")
+	printf("connected to fps");
 
     // ===================================
     // ### GET FUNCTION PARAMETER VALUES
@@ -247,7 +247,7 @@ errno_t KalAO_SHWFS__process_RUN()
     float flux_averagecoeff = functionparameter_GetParamValue_FLOAT32(&fps, ".flux_averagecoeff");
     long algorithm = functionparameter_GetParamValue_INT64(&fps, ".algorithm");
 
-	printf("starting processinfo support")
+	printf("starting processinfo support");
     // ===========================
     // ### processinfo support
     // ===========================
