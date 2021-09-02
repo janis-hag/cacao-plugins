@@ -157,7 +157,7 @@ errno_t KalAO_SHWFS__process_FPCONF()
     float flux_averagecoeffDefault[4] = { 0.1, 0, 1, 0.1 };
 	long fpi_tilt = 0;
 	function_parameter_add_entry(&fps, ".flux_averagecoeff", "Flux averaging coefficient",
-                            FPTYPE_FLOAT32, FPFLAG, &fpi_tilt);
+                            FPTYPE_FLOAT32, FPFLAG, &flux_averagecoeffDefault, &fpi_tilt);
 
     FPS_ADDPARAM_FLT32_OUT   (fpi_flux, ".flux_subaperture", "Max flux in a subaperture");
     FPS_ADDPARAM_FLT32_OUT   (fpi_residual, ".residual", "RMS Residual");
