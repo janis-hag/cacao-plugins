@@ -151,31 +151,39 @@ errno_t KalAO_BMC__display_FPCONF()
     FPS_ADDPARAM_STREAM_IN (fpi_TTMin_streamname,  ".TTMin", "Tip-Tilt stream", NULL);
 
     float tipOffsetDefault[4] = { 0, -2.500, 2.500, 0 };
-	__attribute__((unused)) long fpi_ttm_tip_offset = function_parameter_add_entry(&fps, ".ttm_tip_offset", "Tip offset on TTM",
-                            FPTYPE_FLOAT32, FPFLAG | FPFLAG_WRITERUN, &tipOffsetDefault);
+	long fpi_ttm_tip_offset = 0;
+	function_parameter_add_entry(&fps, ".ttm_tip_offset", "Tip offset on TTM",
+                            FPTYPE_FLOAT32, FPFLAG | FPFLAG_WRITERUN, &tipOffsetDefault, &fpi_ttm_tip_offset);
 
     float tiltOffsetDefault[4] = { 0, -2.500, 2.500, 0 };
-	__attribute__((unused)) long fpi_ttm_tilt_offset = function_parameter_add_entry(&fps, ".ttm_tilt_offset", "Tilt offset on TTM",
-                            FPTYPE_FLOAT32, FPFLAG | FPFLAG_WRITERUN, &tiltOffsetDefault);
+	long fpi_ttm_tilt_offset = 0;
+	function_parameter_add_entry(&fps, ".ttm_tilt_offset", "Tilt offset on TTM",
+                            FPTYPE_FLOAT32, FPFLAG | FPFLAG_WRITERUN, &tiltOffsetDefault, &fpi_ttm_tilt_offset);
 
     float zernikeDefault[4] = { 0, 0, 0, 0 };
-	__attribute__((unused)) long fpi_zernike_piston = function_parameter_add_entry(&fps, ".zernike_piston", "Piston",
-                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault);
+	long fpi_zernike_piston = 0;
+	function_parameter_add_entry(&fps, ".zernike_piston", "Piston",
+                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault, &fpi_zernike_piston);
 
-	__attribute__((unused)) long fpi_zernike_tip = function_parameter_add_entry(&fps, ".zernike_tip", "Tip (on DM)",
-                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault);
+	long fpi_zernike_tip = 0;
+	function_parameter_add_entry(&fps, ".zernike_tip", "Tip (on DM)",
+                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault, &fpi_zernike_tip);
 
-	__attribute__((unused)) long fpi_zernike_tilt = function_parameter_add_entry(&fps, ".zernike_tilt", "Tilt (on DM)",
-                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault);
+	long fpi_zernike_tilt = 0;
+	function_parameter_add_entry(&fps, ".zernike_tilt", "Tilt (on DM)",
+                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault, &fpi_zernike_tilt);
 
-	__attribute__((unused)) long fpi_zernike_defocus = function_parameter_add_entry(&fps, ".zernike_defocus", "Defocus",
-                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault);
+	long fpi_zernike_defocus = 0;
+	function_parameter_add_entry(&fps, ".zernike_defocus", "Defocus",
+                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault, &fpi_zernike_defocus);
 
-	__attribute__((unused)) long fpi_zernike_verticalastigmatism = function_parameter_add_entry(&fps, ".zernike_vert_astig", "Vertical Astigmatism",
-                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault);
+	long fpi_zernike_verticalastigmatism = 0;
+	function_parameter_add_entry(&fps, ".zernike_vert_astig", "Vertical Astigmatism",
+                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault, &fpi_zernike_verticalastigmatism);
 
-	__attribute__((unused)) long fpi_zernike_obliqueastigmatism = function_parameter_add_entry(&fps, ".zernike_obli_astig", "Oblique Astigmatism",
-                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault);
+	long fpi_zernike_obliqueastigmatism = 0;
+	function_parameter_add_entry(&fps, ".zernike_obli_astig", "Oblique Astigmatism",
+                            FPTYPE_FLOAT32, FPFLAG_DEFAULT_INPUT | FPFLAG_WRITERUN, &zernikeDefault, &fpi_zernike_obliqueastigmatism);
 
     // ==============================================
     // ======== START FPS CONF LOOP =================

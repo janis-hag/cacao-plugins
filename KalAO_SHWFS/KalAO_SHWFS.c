@@ -150,12 +150,14 @@ errno_t KalAO_SHWFS__process_FPCONF()
     FPS_ADDPARAM_FILENAME_IN (fpi_spotsfname, ".spotcoords", "SH spot coordinates", NULL);
 
     long algorithmDefault[4] = { 1, 0, 1, 1 };
-	__attribute__((unused)) long fpi_algorithm = function_parameter_add_entry(&fps, ".algorithm", "Algorithm (0 = Quadcell, 1 = Center of mass)",
-                            FPTYPE_INT64, FPFLAG, &algorithmDefault);
+	long fpi_algorithm = 0;
+	function_parameter_add_entry(&fps, ".algorithm", "Algorithm (0 = Quadcell, 1 = Center of mass)",
+                            FPTYPE_INT64, FPFLAG, &algorithmDefault, &fpi_algorithm);
 
     float flux_averagecoeffDefault[4] = { 0.1, 0, 1, 0.1 };
-	__attribute__((unused)) long fpi_tilt = function_parameter_add_entry(&fps, ".flux_averagecoeff", "Flux averaging coefficient",
-                            FPTYPE_FLOAT32, FPFLAG, &flux_averagecoeffDefault);
+	long fpi_tilt = 0;
+	function_parameter_add_entry(&fps, ".flux_averagecoeff", "Flux averaging coefficient",
+                            FPTYPE_FLOAT32, FPFLAG, &fpi_tilt);
 
     FPS_ADDPARAM_FLT32_OUT   (fpi_flux, ".flux_subaperture", "Max flux in a subaperture");
     FPS_ADDPARAM_FLT32_OUT   (fpi_residual, ".residual", "RMS Residual");

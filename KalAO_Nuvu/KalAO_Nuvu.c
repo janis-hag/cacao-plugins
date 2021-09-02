@@ -138,47 +138,58 @@ errno_t KalAO_Nuvu__acquire_FPCONF()
 	void *pNull = NULL;
 
     long temperatureDefault[4] = { -60, -90, 20, -60 };
-    __attribute__((unused)) long fpi_temperature = function_parameter_add_entry(&fps, ".temperature", "Temperature",
-                            FPTYPE_INT64, FPFLAG, &temperatureDefault);
+	long fpi_temperature = 0;
+	function_parameter_add_entry(&fps, ".temperature", "Temperature",
+                            FPTYPE_INT64, FPFLAG, &temperatureDefault, &fpi_temperature);
 
     long readoutmodeDefault[4] = { 1, 1, 12, 1 };
-    __attribute__((unused)) long fpi_readoutmode = function_parameter_add_entry(&fps, ".readoutmode", "Readout mode",
-                            FPTYPE_INT64, FPFLAG, &readoutmodeDefault);
+    long fpi_readoutmode = 0;
+    function_parameter_add_entry(&fps, ".readoutmode", "Readout mode",
+                            FPTYPE_INT64, FPFLAG, &readoutmodeDefault, &fpi_readoutmode);
 
     long binningDefault[4] = { 2, 1, 16, 2 };
-    __attribute__((unused)) long fpi_binning = function_parameter_add_entry(&fps, ".binning", "Binning",
-                            FPTYPE_INT64, FPFLAG, &binningDefault);
+    long fpi_binning = 0;
+    function_parameter_add_entry(&fps, ".binning", "Binning",
+                            FPTYPE_INT64, FPFLAG, &binningDefault, &fpi_binning);
 
 	long emgainDefault[4] = { 1, 1, 1000, 1 };
-	__attribute__((unused)) long fpi_emgain = function_parameter_add_entry(&fps, ".emgain", "EM Gain",
-                            FPTYPE_INT64, FPFLAG | FPFLAG_WRITERUN, &emgainDefault);
+	long fpi_emgain = 0;
+	function_parameter_add_entry(&fps, ".emgain", "EM Gain",
+                            FPTYPE_INT64, FPFLAG | FPFLAG_WRITERUN, &emgainDefault, &fpi_emgain);
 
 	float exposuretimeDefault[4] = { 0, 0, 1e3, 0 };
-	__attribute__((unused)) long fpi_exposuretime = function_parameter_add_entry(&fps, ".exposuretime", "Exposure Time",
-                            FPTYPE_FLOAT32, FPFLAG | FPFLAG_WRITERUN, &exposuretimeDefault);
+	long fpi_exposuretime = 0;
+	function_parameter_add_entry(&fps, ".exposuretime", "Exposure Time",
+                            FPTYPE_FLOAT32, FPFLAG | FPFLAG_WRITERUN, &exposuretimeDefault, &fpi_exposuretime);
 
-    __attribute__((unused)) long fpi_bias = function_parameter_add_entry(&fps, ".bias", "Bias files",
-                           FPTYPE_STRING, FPFLAG, "bias/bias_%02ldC_%02ldrom_%01ldb_%04ldg.fits");
+	long fpi_bias = 0;
+    function_parameter_add_entry(&fps, ".bias", "Bias files",
+                           FPTYPE_STRING, FPFLAG, "bias/bias_%02ldC_%02ldrom_%01ldb_%04ldg.fits", &fpi_bias);
 
-    __attribute__((unused)) long fpi_flat = function_parameter_add_entry(&fps, ".flat", "Flat files",
-                           FPTYPE_STRING, FPFLAG, "flat/flat_%02ldC_%02ldrom_%01ldb_%04ldg.fits");
+	long fpi_flat = 0;
+    function_parameter_add_entry(&fps, ".flat", "Flat files",
+                           FPTYPE_STRING, FPFLAG, "flat/flat_%02ldC_%02ldrom_%01ldb_%04ldg.fits", &fpi_flat);
 
-    __attribute__((unused)) long fpi_autogain = function_parameter_add_entry(&fps, ".autogain_on", "Auto-gain ON/OFF",
-                            FPTYPE_ONOFF, FPFLAG | FPFLAG_WRITERUN, pNull);
+	long fpi_autogain = 0;
+    function_parameter_add_entry(&fps, ".autogain_on", "Auto-gain ON/OFF",
+                            FPTYPE_ONOFF, FPFLAG | FPFLAG_WRITERUN, pNull, &fpi_autogain);
 
     FPS_ADDPARAM_FILENAME_IN (fpi_autogain_paramsfname, ".autogain_params", "Exposure Parameters for Auto-gain", NULL);
 
     long autogainLowerLimit[4] = { 60000, 0, 65535, 60000 };
-    __attribute__((unused)) long fpi_autogainLowerLimit = function_parameter_add_entry(&fps, ".autogain_low", "Auto-gain Lower Limit (ADU)",
-                            FPTYPE_INT64, FPFLAG, &autogainLowerLimit);
+    long fpi_autogainLowerLimit = 0;
+    function_parameter_add_entry(&fps, ".autogain_low", "Auto-gain Lower Limit (ADU)",
+                            FPTYPE_INT64, FPFLAG, &autogainLowerLimit, &fpi_autogainLowerLimit);
 
     long autogainUpperLimit[4] = { 75000, 0, 4*65535, 75000 };
-    __attribute__((unused)) long fpi_autogainUpperLimit = function_parameter_add_entry(&fps, ".autogain_high", "Auto-gain Upper Limit (ADU)",
-                            FPTYPE_INT64, FPFLAG, &autogainUpperLimit);
+	long fpi_autogainUpperLimit = 0;
+	function_parameter_add_entry(&fps, ".autogain_high", "Auto-gain Upper Limit (ADU)",
+                            FPTYPE_INT64, FPFLAG, &autogainUpperLimit, &fpi_autogainUpperLimit);
 
     long autogainFramewait[4] = { 500, 0, 5000, 500 };
-    __attribute__((unused)) long fpi_autogainFramewait = function_parameter_add_entry(&fps, ".autogain_framewait", "Number of frames to wait after a change to exposure",
-                            FPTYPE_INT64, FPFLAG, &autogainFramewait);
+	long fpi_autogainFramewait = 0;
+	function_parameter_add_entry(&fps, ".autogain_framewait", "Number of frames to wait after a change to exposure",
+                            FPTYPE_INT64, FPFLAG, &autogainFramewait, &fpi_autogainFramewait);
 
 	FPS_ADDPARAM_FLT64_OUT(fpi_temp_ccd, ".temp_ccd", "CCD Temperature");
 	FPS_ADDPARAM_FLT64_OUT(fpi_temp_controller, ".temp_controller", "Controller Temperature");
