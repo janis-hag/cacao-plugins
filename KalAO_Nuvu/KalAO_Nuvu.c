@@ -464,6 +464,13 @@ errno_t KalAO_Nuvu__acquire_RUN()
 		return error;
 	}
 
+	// ===========================
+    // ### Decrease logging output
+    // ===========================
+
+	cons char *silence_ncCamGetComponentTemp = "ncCamGetComponentTemp";
+	error = nCamSilenceFunctionLogging(cam, silence_ncCamGetComponentTemp, 1);
+
 	processinfo_WriteMessage(processinfo, "Setting readout mode");
 	error = ncCamSetReadoutMode(cam, readoutmode);
 	if (error) {
