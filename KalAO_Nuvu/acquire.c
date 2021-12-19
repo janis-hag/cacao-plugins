@@ -428,6 +428,16 @@ static errno_t compute_function()
 		return error;
 	}
 
+	/********** Reduce logging output ****/
+
+	const char* temperature_function_name = "ncCamGetComponentTemp";
+	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
+	error = ncCamSilenceFunctionLogging(cam, 1);
+	if (error) {
+		printf("\nThe error %d happened while disbaling temperature logging\n", error);
+		return error;
+	}
+
 	/********** Allocate streams **********/
 
 	processinfo_WriteMessage(processinfo, "Allocating streams");
