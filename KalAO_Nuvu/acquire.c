@@ -432,7 +432,7 @@ static errno_t compute_function()
 
 	const char* temperature_function_name = "ncCamGetComponentTemp";
 	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
-	error = ncCamSilenceFunctionLogging(cam, 1);
+	error = ncCamSilenceFunctionLogging(cam, temperature_function_name, 1);
 	if (error) {
 		printf("\nThe error %d happened while disbaling temperature logging\n", error);
 		return error;
