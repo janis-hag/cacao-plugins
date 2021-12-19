@@ -1,31 +1,57 @@
-# library name
 set(LIBNAME "cacaoKalAOBMC")
-set(SRCNAME "KalAO_BMC")
 
-
+# list source files (.c) other than modulename.c
 set(SOURCEFILES
-	${SRCNAME}.c)
+	display.c
+)
 
+# list include files (.h) that should be installed on system
 set(INCLUDEFILES
-	${SRCNAME}.h)
+)
 
+# list scripts that should be installed on system
+set(SCRIPTFILES
+)
+
+
+set(LINKLIBS
+	CLIcore
+)
 
 # DEFAULT SETTINGS
 # Do not change unless needed
 # =====================================================================
+
+# SRCNAME is current directory (last subdir)
+set(NAME0 "${CMAKE_CURRENT_SOURCE_DIR}")
+string(REPLACE "/" " " NAME1 ${NAME0})
+string(REGEX MATCH "[a-zA-Z0-9_]+$" SRCNAME "${NAME0}")
+message(" SRCNAME = ${SRCNAME}")
+
+# LIBNAME constructed by removing spaces
+#string(REPLACE "_" "" LIBNAME "${SRCNAME}")
+#message(" LIBNAME = ${LIBNAME}")
+
+
 
 project(lib_${LIBNAME}_project)
 
 # Library can be compiled from multiple source files
 # Convention: the main souce file is named <libname>.c
 #
-add_library(${LIBNAME} SHARED ${SOURCEFILES})
-target_link_libraries(${LIBNAME} PUBLIC CLIcore milkZernikePolyn)
+add_library(${LIBNAME} SHARED ${SRCNAME}.c ${SOURCEFILES})
+
+# note: set tp PUBLIC if other modules link to this one
+target_include_directories(${LIBNAME} PRIVATE ${PROJECT_SOURCE_DIR}/.. ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(${LIBNAME} PRIVATE ${LINKLIBS})
 
 install(TARGETS ${LIBNAME} DESTINATION lib)
-install(FILES ${INCLUDEFILES} DESTINATION include/${SRCNAME})
+install(FILES ${SRCNAME}.h ${INCLUDEFILES} DESTINATION include/${SRCNAME})
+install(PROGRAMS ${SCRIPTFILES} DESTINATION bin)
 
-# NUVU SETTINGS
+# BMC SETTINGS
 # =====================================================================
 include_directories ("/opt/Boston\ Micromachines/include/")
 target_link_libraries(${LIBNAME} PUBLIC /opt/Boston\ Micromachines/lib/libBMC.so)
+
+target_link_libraries(${LIBNAME} PUBLIC milkZernikePolyn)
