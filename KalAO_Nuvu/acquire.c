@@ -430,6 +430,14 @@ static errno_t compute_function()
 
 	/********** Reduce logging output ****/
 
+	const char*  cam_read_function_name = "ncCamRead";
+	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
+	error = ncCamSilenceFunctionLogging(cam, cam_read_function_name, 1);
+	if (error) {
+		printf("\nThe error %d happened while disbaling camRead logging\n", error);
+		return error;
+	}
+
 	const char* temperature_function_name = "ncCamGetComponentTemp";
 	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
 	error = ncCamSilenceFunctionLogging(cam, temperature_function_name, 1);
