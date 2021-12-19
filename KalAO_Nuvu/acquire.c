@@ -59,6 +59,9 @@ static long fpi_emgain = 0;
 static long fpi_exposuretime = 0;
 static long fpi_autogain = 0;
 
+static long emgain_cnt0 = 0;
+static long exposuretime_cnt0 = 0;
+
 static errno_t customCONFsetup()
 {
 	FPS_CONNECT(data.FPS_name, FPSCONNECT_CONF);
@@ -123,14 +126,14 @@ static errno_t customCONFsetup()
 	FPS_ADDPARAM_FLT64_OUT(fpi_temp_fpga, ".temp_fpga", "FPGA Temperature");
 	FPS_ADDPARAM_FLT64_OUT(fpi_temp_heatsink, ".temp_heatsink", "Heatsink Temperature");
 
+	emgain_cnt0 = fps.parray[fpi_emgain].cnt0;
+    exposuretime_cnt0 = fps.parray[fpi_exposuretime].cnt0;
+
     return RETURN_SUCCESS;
 }
 
 static errno_t customCONFcheck() {
 	FPS_CONNECT(data.FPS_name, FPSCONNECT_CONF);
-
-    long emgain_cnt0 = fps.parray[fpi_emgain].cnt0;
-    long exposuretime_cnt0 = fps.parray[fpi_exposuretime].cnt0;
 
 	if(fps.parray[fpi_emgain].cnt0 != emgain_cnt0)
 	{
