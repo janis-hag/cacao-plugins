@@ -434,7 +434,7 @@ static errno_t compute_function()
 	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
 	error = ncCamSilenceFunctionLogging(cam, cam_read_function_name, 1);
 	if (error) {
-		printf("\nThe error %d happened while disbaling camRead logging\n", error);
+		printf("\nThe error %d happened while disabling ncCamReadUInt32 logging\n", error);
 		return error;
 	}
 
@@ -442,7 +442,7 @@ static errno_t compute_function()
 	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
 	error = ncCamSilenceFunctionLogging(cam, temperature_function_name, 1);
 	if (error) {
-		printf("\nThe error %d happened while disbaling temperature logging\n", error);
+		printf("\nThe error %d happened while disabling ncCamGetComponentTemp logging\n", error);
 		return error;
 	}
 
