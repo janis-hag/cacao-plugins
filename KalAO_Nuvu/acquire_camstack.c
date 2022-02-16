@@ -87,12 +87,12 @@ static errno_t customCONFsetup()
 	long widthOffsetDefault[4] = { 0, 0, 70, 0 };
     long fpi_widthoffset = 0;
 	function_parameter_add_entry(&fps, ".width_offset", "Width offset",
-                            FPTYPE_INT64, FPFLAG | FPFLAG_WRITERUN, &widthOffsetDefault, &fpi_widthoffset);
+                            FPTYPE_INT64, FPFLAG, &widthOffsetDefault, &fpi_widthoffset);
 
 	long heightOffsetDefault[4] = { 0, 0, 70, 0 };
 	long fpi_heightoffset = 0;
 	function_parameter_add_entry(&fps, ".height_offset", "Height offset",
-                            FPTYPE_INT64, FPFLAG | FPFLAG_WRITERUN, &heightOffsetDefault, &fpi_heightoffset);
+                            FPTYPE_INT64, FPFLAG, &heightOffsetDefault, &fpi_heightoffset);
 
 	long emgainDefault[4] = { 1, 1, 1000, 1 };
 	function_parameter_add_entry(&fps, ".emgain", "EM Gain",
@@ -612,8 +612,8 @@ static errno_t compute_function()
 			for(ii=0; ii<width; ii++)
 				for(jj=0; jj<height; jj++)
                     //TODO: mettre 8* au bon endroit
-					//data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.U16[((jj)+height_offset)*width+(8*(width-ii)+width_offset)] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
-					data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.U16[((jj)+height_offset)*width+(8*(width-ii)+width_offset)]);
+					//data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[((jj)+height_offset)*width+(8*(width-ii)+width_offset)] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
+					data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[((jj)+height_offset)*width+(8*(width-ii)+width_offset)]);
 
 
 			processinfo_update_output_stream(processinfo, IDout);
