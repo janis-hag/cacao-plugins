@@ -346,7 +346,7 @@ static errno_t compute_function()
     // ===================================
     // ### GET FUNCTION PARAMETER VALUES
     // ===================================
-    /ong temperature = functionparameter_GetParamValue_INT64(&fps, ".temperature");
+    long temperature = functionparameter_GetParamValue_INT64(&fps, ".temperature");
     /*long readoutmode = functionparameter_GetParamValue_INT64(&fps, ".readoutmode");
     long binning = functionparameter_GetParamValue_INT64(&fps, ".binning");*/
     long autogain_low = functionparameter_GetParamValue_INT64(&fps, ".autogain_low");
