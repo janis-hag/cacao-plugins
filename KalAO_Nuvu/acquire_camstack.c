@@ -236,17 +236,27 @@ int update_exposuretime(float exposuretime) {
 printf("Exposure time to be set: %f\n", exposuretime);
 char *set_exp = (char *)malloc(64*sizeof(char));
 sprintf(set_exp, "tmux send-keys -t nuvu_ctrl \"SetExposureTime(%f)\" Enter", exposuretime);
-printf("command: %s\n", set_exp);
+//printf("command: %s\n", set_exp);
 int status = system(set_exp);
 //int status = system('tmux send-keys -t nuvu_ctrl "SetExposureTime( %f)" Enter',  exposuretime);
-printf("Returned status: %d\n", status);
+//printf("Returned status: %d\n", status);
+
+// TODO check if status is equal to the exposuretime.
 
 return RETURN_SUCCESS;
 }
 
 int update_emgain(long emgain) {
+printf("EMgain time to be set: %f\n", emgain);
+char *set_emgain = (char *)malloc(64*sizeof(char));
+sprintf(set_emgain, "tmux send-keys -t nuvu_ctrl \"SetEMCalibratedGain(%f)\" Enter", emgain);
+//printf("command: %s\n", set_exp);
+int status = system(set_emgain);
+
 // send tmux command
 //int status = system('tmux send-keys -t nuvu_ctrl "SetEMCalibratedGain( %5f)" Enter',  emgain);
+
+return RETURN_SUCCESS;
 }
 
 void load_bias_and_flat(PROCESSINFO *processinfo, FUNCTION_PARAMETER_STRUCT *fps, imageID biasID, imageID flatID, long temperature, long readoutmode, long binning, long emgain)
@@ -602,7 +612,8 @@ static errno_t compute_function()
 			for(ii=0; ii<width; ii++)
 				for(jj=0; jj<height; jj++)
                     //TODO: mettre 8* au bon endroit
-					data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.F[((jj)+height_offset)*width+(8*(width-ii)+width_offset)] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
+					//data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.U16[((jj)+height_offset)*width+(8*(width-ii)+width_offset)] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
+					data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.U16[((jj)+height_offset)*width+(8*(width-ii)+width_offset)]);
 
 
 			processinfo_update_output_stream(processinfo, IDout);
