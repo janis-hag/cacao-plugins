@@ -69,7 +69,7 @@ static errno_t customCONFsetup()
 	uint64_t FPFLAG = FPFLAG_DEFAULT_INPUT | FPFLAG_MINLIMIT | FPFLAG_MAXLIMIT;  // required to enforce the min and max
 	void *pNull = NULL;
 
-    /*long temperatureDefault[4] = { -60, -90, 20, -60 };
+    /long temperatureDefault[4] = { -60, -90, 20, -60 };
 	long fpi_temperature = 0;
 	function_parameter_add_entry(&fps, ".temperature", "Temperature",
                             FPTYPE_INT64, FPFLAG, &temperatureDefault, &fpi_temperature);
@@ -82,15 +82,15 @@ static errno_t customCONFsetup()
     long binningDefault[4] = { 2, 1, 16, 2 };
     long fpi_binning = 0;
     function_parameter_add_entry(&fps, ".binning", "Binning",
-                            FPTYPE_INT64, FPFLAG, &binningDefault, &fpi_binning);*/
+                            FPTYPE_INT64, FPFLAG, &binningDefault, &fpi_binning);
 
-	long widthOffset[4] = { 0, 0, 70, 0 };
-    long fpi_widthOffset = 0;
+	long widthOffsetDefault[4] = { 0, 0, 70, 0 };
+    long fpi_widthoffset = 0;
 	function_parameter_add_entry(&fps, ".width_offset", "Width offset",
                             FPTYPE_INT64, FPFLAG | FPFLAG_WRITERUN, &widthOffsetDefault, &fpi_widthoffset);
 
-	long heightOffset[4] = { 0, 0, 70, 0 };
-	long fpi_heightOffset = 0;
+	long heightOffsetDefault[4] = { 0, 0, 70, 0 };
+	long fpi_heightoffset = 0;
 	function_parameter_add_entry(&fps, ".height_offset", "Height offset",
                             FPTYPE_INT64, FPFLAG | FPFLAG_WRITERUN, &heightOffsetDefault, &fpi_heightoffset);
 
@@ -240,6 +240,8 @@ printf("command: %s\n", set_exp);
 int status = system(set_exp);
 //int status = system('tmux send-keys -t nuvu_ctrl "SetExposureTime( %f)" Enter',  exposuretime);
 printf("Returned status: %d\n", status);
+
+return 0
 }
 
 int update_emgain(long emgain) {
@@ -344,8 +346,8 @@ static errno_t compute_function()
     // ===================================
     // ### GET FUNCTION PARAMETER VALUES
     // ===================================
-    /*long temperature = functionparameter_GetParamValue_INT64(&fps, ".temperature");
-    long readoutmode = functionparameter_GetParamValue_INT64(&fps, ".readoutmode");
+    /ong temperature = functionparameter_GetParamValue_INT64(&fps, ".temperature");
+    /*long readoutmode = functionparameter_GetParamValue_INT64(&fps, ".readoutmode");
     long binning = functionparameter_GetParamValue_INT64(&fps, ".binning");*/
     long autogain_low = functionparameter_GetParamValue_INT64(&fps, ".autogain_low");
     long autogain_high = functionparameter_GetParamValue_INT64(&fps, ".autogain_high");
