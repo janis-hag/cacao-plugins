@@ -241,7 +241,7 @@ int status = system(set_exp);
 //int status = system('tmux send-keys -t nuvu_ctrl "SetExposureTime( %f)" Enter',  exposuretime);
 printf("Returned status: %d\n", status);
 
-return 0
+return RETURN_SUCCESS;
 }
 
 int update_emgain(long emgain) {
