@@ -46,7 +46,7 @@ static CLICMDDATA CLIcmddata =
 
 /* ================================================================== */
 /* ================================================================== */
-/*  FUNCTIONS                                                         */
+/*  FUNCTIONS                                                        																					   */
 /* ================================================================== */
 /* ================================================================== */
 
@@ -552,12 +552,13 @@ static errno_t compute_function()
             {
                 processinfo_WriteMessage(processinfo, "New exposure time");
 
-                error = update_exposuretime(*exposuretimePtr);
+                //error =
+                update_exposuretime(*exposuretimePtr);
 	            //error = ncCamSetExposureTime(cam, *exposuretimePtr);
-	            if (error) {
+	            /*if (error) {
 	            	printf("\nThe error %d happened while setting exposure time\n", error);
 		            //return error;
-	            }
+	            }*/
 
 	            *exposuretimeFlag &= ~FPFLAG_KALAO_UPDATED;
 
