@@ -2,7 +2,7 @@ set(LIBNAME "cacaoKalAONuvu")
 
 # list source files (.c) other than modulename.c
 set(SOURCEFILES
-	acquire.c
+	acquire_camstack.c
 )
 
 # list include files (.h) that should be installed on system
