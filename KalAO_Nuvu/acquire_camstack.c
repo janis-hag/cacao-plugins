@@ -69,7 +69,7 @@ static errno_t customCONFsetup()
 	uint64_t FPFLAG = FPFLAG_DEFAULT_INPUT | FPFLAG_MINLIMIT | FPFLAG_MAXLIMIT;  // required to enforce the min and max
 	void *pNull = NULL;
 
-    /long temperatureDefault[4] = { -60, -90, 20, -60 };
+    long temperatureDefault[4] = { -60, -90, 20, -60 };
 	long fpi_temperature = 0;
 	function_parameter_add_entry(&fps, ".temperature", "Temperature",
                             FPTYPE_INT64, FPFLAG, &temperatureDefault, &fpi_temperature);
