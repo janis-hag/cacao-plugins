@@ -27,7 +27,7 @@
 // Forward declarations are required to connect CLI calls to functions
 // If functions are in separate .c files, include here the corresponding .h files
 //
-#include "acquire.h"
+#include "acquire_camstack.h"
 
 /* ================================================================== */
 /* ================================================================== */
