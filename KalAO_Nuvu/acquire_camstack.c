@@ -569,12 +569,13 @@ static errno_t compute_function()
             {
                 processinfo_WriteMessage(processinfo, "New EM gain");
 
-                error = update_emgain(*emgainPtr);
+                //error =
+                update_emgain(*emgainPtr);
                 //error = ncCamSetCalibratedEmGain(cam, *emgainPtr);
-	            if (error) {
+	            /*if (error) {
                     printf("\nThe error %d happened while setting EM gain\n", error);
 		            //return error;
-	            }
+	            }*/
 
                 load_bias_and_flat(processinfo, &fps, biasID, flatID, temperature, readoutmode, binning, *emgainPtr);
 
