@@ -11,7 +11,7 @@
 #include "COREMOD_iofits/file_exists.h"
 #include "COREMOD_iofits/is_fits_file.h"
 #include <stdlib.h>
-
+#include <limits.h>
 
 /* ================================================================== */
 /*           MACROS, DEFINES                                          */
