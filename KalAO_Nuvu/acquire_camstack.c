@@ -614,7 +614,7 @@ static errno_t compute_function()
                     //TODO: mettre 8* au bon endroit
 					//data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[((jj)+height_offset)*width+(8*(width-ii)+width_offset)] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
 					//data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[((height)+height_offset)*width+(8*(width-ii)+width_offset)]);
-					data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[jj*width+ii]);
+					data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[8*jj*width+ii]);
 
 			processinfo_update_output_stream(processinfo, IDout);
 
