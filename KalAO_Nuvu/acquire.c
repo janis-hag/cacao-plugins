@@ -352,7 +352,9 @@ static errno_t compute_function()
 
 	int	error = NC_SUCCESS;
     NcCam cam = NULL;
-    uint32_t* image = NULL;
+    //NATH_camread_test
+    //uint32_t* image = NULL;
+    NcImage *image = NULL;
     int width = 0;
     int height = 0;
 
@@ -414,12 +416,13 @@ static errno_t compute_function()
 		return error;
 	}
 
-	processinfo_WriteMessage(processinfo, "Allocating the image");
-	error = ncCamAllocUInt32Image(cam, &image);
-	if (error) {
-		printf("\nThe error %d happened while allocating the image\n", error);
-		return error;
-	}
+	//NATH_camread_test
+	//processinfo_WriteMessage(processinfo, "Allocating the image");
+	//error = ncCamAllocUInt32Image(cam, &image);
+	//if (error) {
+	//	printf("\nThe error %d happened while allocating the image\n", error);
+	//	return error;
+	//}
 
 	processinfo_WriteMessage(processinfo, "Getting image size");
 	error = ncCamGetSize(cam, &width, &height);
@@ -430,7 +433,7 @@ static errno_t compute_function()
 
 	/********** Reduce logging output ****/
 
-	const char*  cam_read_function_name = "ncCamReadUInt32";
+	/*const char*  cam_read_function_name = "ncCamReadUInt32";
 	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
 	error = ncCamSilenceFunctionLogging(cam, cam_read_function_name, 1);
 	if (error) {
@@ -444,7 +447,7 @@ static errno_t compute_function()
 	if (error) {
 		printf("\nThe error %d happened while disabling ncCamGetComponentTemp logging\n", error);
 		return error;
-	}
+	}*/
 
 	/********** Allocate streams **********/
 
@@ -548,7 +551,9 @@ static errno_t compute_function()
 
             /***** Read image from camera *****/
 
-			error = ncCamReadUInt32(cam, image);
+			//NATH_camread_test
+			//error = ncCamReadUInt32(cam, image);
+			error = ncCamRead(cam, &image);
 			if (error) {
 				printf("\nThe error %d happened while reading the image\n", error);
 				//return error;
@@ -560,7 +565,11 @@ static errno_t compute_function()
 
 			for(ii=0; ii<width; ii++)
 				for(jj=0; jj<height; jj++)
-					data.image[IDout].array.F[jj*width+ii] = ((image[jj*width+ii] >> 16) - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
+					//NATH_camread_test
+					//data.image[IDout].array.F[jj*width+ii] = ((image[jj*width+ii] >> 16) - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
+					//seem to compile, but need a cast? example with a uint16_t cast:
+					// data.image[IDout].array.F[jj*width+ii] = (((uint16_t*) image)[jj*width+ii] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
+					data.image[IDout].array.F[jj*width+ii] = (image[jj*width+ii] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
 
 			processinfo_update_output_stream(processinfo, IDout);
 
@@ -648,12 +657,13 @@ static errno_t compute_function()
 		return error;
 	}
 
-	processinfo_WriteMessage(processinfo, "Freeing the image buffer");
-	error = ncCamFreeUInt32Image(&image);
-	if (error) {
-		printf("\nThe error %d happened while freeing the image buffer\n", error);
-		return error;
-	}
+	//NATH_camread_test
+	//processinfo_WriteMessage(processinfo, "Freeing the image buffer");
+	//error = ncCamFreeUInt32Image(&image);
+	//if (error) {
+	//	printf("\nThe error %d happened while freeing the image buffer\n", error);
+	//	return error;
+	//}
 
 	processinfo_WriteMessage(processinfo, "Closing the shutter");
     error = ncCamSetShutterMode(cam, CLOSE);

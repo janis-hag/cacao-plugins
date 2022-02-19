@@ -94,7 +94,7 @@ static errno_t customCONFsetup()
 	function_parameter_add_entry(&fps, ".height_offset", "Height offset",
                             FPTYPE_INT64, FPFLAG, &heightOffsetDefault, &fpi_heightoffset);
 
-	long emgainDefault[4] = { 1, 1, 1000, 1 };
+	long emgainDefault[4] = { 1, 1, 500, 1 };
 	function_parameter_add_entry(&fps, ".emgain", "EM Gain",
                             FPTYPE_INT64, FPFLAG | FPFLAG_WRITERUN, &emgainDefault, &fpi_emgain);
 
@@ -247,9 +247,9 @@ return RETURN_SUCCESS;
 }
 
 int update_emgain(long emgain) {
-printf("EMgain time to be set: %f\n", emgain);
+printf("EMgain time to be set: %ld\n", emgain);
 char *set_emgain = (char *)malloc(64*sizeof(char));
-sprintf(set_emgain, "tmux send-keys -t nuvu_ctrl \"SetEMCalibratedGain(%f)\" Enter", emgain);
+sprintf(set_emgain, "tmux send-keys -t nuvu_ctrl \"SetEMCalibratedGain(%ld)\" Enter", emgain);
 //printf("command: %s\n", set_exp);
 int status = system(set_emgain);
 
@@ -397,6 +397,9 @@ static errno_t compute_function()
     //uint32_t* image = NULL;
     int width = 64;
     int height = 64;
+    int width_in = 520;
+    int height_in = 70;
+
 
 	/********** Open and configure camera **********/
 
@@ -489,6 +492,9 @@ static errno_t compute_function()
 		printf("\nThe error %d happened while disabling ncCamGetComponentTemp logging\n", error);
 		return error;
 	}*/
+
+	update_exposuretime(*exposuretimePtr);
+	update_emgain(*emgainPtr);
 
 	/********** Allocate streams **********/
 
@@ -596,7 +602,6 @@ static errno_t compute_function()
 
             /***** Read image from camera *****/
 
-			imageID IDin = processinfo->triggerstreamID;
 
 			/*error = ncCamReadUInt32(cam, image);
 			if (error) {
@@ -611,10 +616,7 @@ static errno_t compute_function()
 
 			for(ii=0; ii<width; ii++)
 				for(jj=0; jj<height; jj++)
-                    //TODO: mettre 8* au bon endroit
-					//data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[((jj)+height_offset)*width+(8*(width-ii)+width_offset)] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
-					//data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[((height)+height_offset)*width+(8*(width-ii)+width_offset)]);
-					data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[8*jj*width+ii]);
+					data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[(jj+4)*width_in+8*(width-ii)] - data.image[biasID].array.F[jj*width+ii])  * data.image[flatID].array.F[jj*width+ii];
 
 			processinfo_update_output_stream(processinfo, IDout);
 
