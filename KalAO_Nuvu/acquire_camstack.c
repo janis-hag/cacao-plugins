@@ -232,32 +232,34 @@ void update_exposure_parameters(FUNCTION_PARAMETER_STRUCT *fps, NUVU_AUTOGAIN_PA
 }
 
 int update_exposuretime(float exposuretime) {
-// send tmux command
-printf("Exposure time to be set: %f\n", exposuretime);
-char *set_exp = (char *)malloc(64*sizeof(char));
-sprintf(set_exp, "tmux send-keys -t nuvu_ctrl \"SetExposureTime(%f)\" Enter", exposuretime);
-//printf("command: %s\n", set_exp);
-int status = system(set_exp);
-//int status = system('tmux send-keys -t nuvu_ctrl "SetExposureTime( %f)" Enter',  exposuretime);
-//printf("Returned status: %d\n", status);
+	// send tmux command
+	printf("Exposure time to be set: %f\n", exposuretime);
+	char *set_exp = (char *)malloc(64*sizeof(char));
+	sprintf(set_exp, "tmux send-keys -t nuvu_ctrl \"SetExposureTime(%f)\" Enter", exposuretime);
+	//printf("command: %s\n", set_exp);
+	int status = system(set_exp);
+	//int status = system('tmux send-keys -t nuvu_ctrl "SetExposureTime( %f)" Enter',  exposuretime);
+	//printf("Returned status: %d\n", status);
 
-// TODO check if status is equal to the exposuretime.
+	// TODO check if status is equal to the exposuretime.
 
 return RETURN_SUCCESS;
 }
+
 
 int update_emgain(long emgain) {
-printf("EMgain time to be set: %f\n", emgain);
-char *set_emgain = (char *)malloc(64*sizeof(char));
-sprintf(set_emgain, "tmux send-keys -t nuvu_ctrl \"SetEMCalibratedGain(%f)\" Enter", emgain);
-//printf("command: %s\n", set_exp);
-int status = system(set_emgain);
+	printf("EMgain time to be set: %f\n", emgain);
+	char *set_emgain = (char *)malloc(64*sizeof(char));
+	sprintf(set_emgain, "tmux send-keys -t nuvu_ctrl \"SetEMCalibratedGain(%f)\" Enter", emgain);
+	//printf("command: %s\n", set_exp);
+	int status = system(set_emgain);
 
-// send tmux command
-//int status = system('tmux send-keys -t nuvu_ctrl "SetEMCalibratedGain( %5f)" Enter',  emgain);
+	// send tmux command
+	//int status = system('tmux send-keys -t nuvu_ctrl "SetEMCalibratedGain( %5f)" Enter',  emgain);
 
-return RETURN_SUCCESS;
+	return RETURN_SUCCESS;
 }
+
 
 void load_bias_and_flat(PROCESSINFO *processinfo, FUNCTION_PARAMETER_STRUCT *fps, imageID biasID, imageID flatID, long temperature, long readoutmode, long binning, long emgain)
 {
