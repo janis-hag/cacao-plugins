@@ -28,6 +28,7 @@
 // If functions are in separate .c files, include here the corresponding .h files
 //
 #include "acquire_camstack.h"
+//#include "acquire.h"
 
 /* ================================================================== */
 /* ================================================================== */
