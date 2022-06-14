@@ -6,10 +6,11 @@
 
 #define _GNU_SOURCE
 #include "CommandLineInterface/CLIcore.h"
-#include "CommandLineInterface/fps_GetParamIndex.h"
+#include "CommandLineInterface/fps/fps_GetParamIndex.h"
 #include "COREMOD_iofits/loadfits.h"
 #include "COREMOD_iofits/file_exists.h"
 #include "COREMOD_iofits/is_fits_file.h"
+
 #include <stdlib.h>
 #include <limits.h>
 
@@ -30,15 +31,6 @@ typedef struct
 #define FPFLAG_KALAO_AUTOGAIN    0x1000000000000000
 #define FPFLAG_KALAO_UPDATED     0x2000000000000000
 
-
-
-// OGNOTE
-// Put args upfront in CLICMDARGDEF farg[]
-// They will then be available through this translation unit
-//
-
-
-
 static int64_t *temperature;
 static long fpi_temperature;
 
@@ -48,22 +40,17 @@ static long fpi_readoutmode;
 static int64_t *binning;
 static long fpi_binning;
 
-static int64_t *widthoffset;
-static long fpi_widthoffset;
-
-static int64_t *heightoffset;
-static long fpi_heightoffset;
-
-
 static int64_t *emgain;
 static long fpi_emgain = 0;
-
 
 static float *exposuretime;
 static long fpi_exposuretime;
 
-static char *biasfname;
-static long fpi_biasfname;
+static char *bias_fname;
+static long fpi_bias_fname;
+
+static char *flat_fname;
+static long fpi_flat_fname;
 
 static uint64_t *autogain;
 static long fpi_autogain;
@@ -71,15 +58,14 @@ static long fpi_autogain;
 static char *autogain_params_fname;
 static long fpi_autogain_params_fname;
 
-
 static int64_t *autogain_low;
 static long fpi_autogain_low;
 
 static int64_t *autogain_high;
 static long fpi_autogain_high;
 
-static int64_t *autogainFramewait;
-static long fpi_autogainFramewait;
+static int64_t *autogain_framewait;
+static long fpi_autogain_framewait;
 
 
 
@@ -118,24 +104,6 @@ static CLICMDARGDEF farg[] =
     },
     {
         CLIARG_INT64,
-        ".width_offset",
-        "Width offset",
-        "0",
-        CLIARG_VISIBLE_DEFAULT,
-        (void **) &widthoffset,
-        &fpi_widthoffset
-    },
-    {
-        CLIARG_INT64,
-        ".height_offset",
-        "Height offset",
-        "0",
-        CLIARG_VISIBLE_DEFAULT,
-        (void **) &heightoffset,
-        &fpi_heightoffset
-    },
-    {
-        CLIARG_INT64,
         ".emgain",
         "EM Gain",
         "1",
@@ -153,13 +121,22 @@ static CLICMDARGDEF farg[] =
         &fpi_exposuretime
     },
     {
-        CLIARG_STR,
+        CLIARG_FILENAME,
         ".bias",
         "Bias files",
-        "bias.fits",
+        "bias/bias_%02ldC_%02ldrom_%01ldb_%04ldg.fits",
         CLIARG_VISIBLE_DEFAULT,
-        (void **) &biasfname,
-        &fpi_biasfname
+        (void **) &bias_fname,
+        &fpi_bias_fname
+    },
+    {
+        CLIARG_FILENAME,
+        ".flat",
+        "Flat files",
+        "flat/flat_%02ldC_%02ldrom_%01ldb_%04ldg.fits",
+        CLIARG_VISIBLE_DEFAULT,
+        (void **) &flat_fname,
+        &fpi_flat_fname
     },
     {
         CLIARG_ONOFF,
@@ -171,7 +148,7 @@ static CLICMDARGDEF farg[] =
         &fpi_autogain
     },
     {
-        CLIARG_STR,
+        CLIARG_FILENAME,
         ".autogain_params",
         "Exposure Parameters for Auto-gain",
         "filename",
@@ -203,8 +180,8 @@ static CLICMDARGDEF farg[] =
         "Number of frames to wait after a change to exposure",
         "500",
         CLIARG_VISIBLE_DEFAULT,
-        (void **) &autogainFramewait,
-        &fpi_autogainFramewait
+        (void **) &autogain_framewait,
+        &fpi_autogain_framewait
     }
 };
 
@@ -219,7 +196,7 @@ static CLICMDDATA CLIcmddata =
 
 /* ================================================================== */
 /* ================================================================== */
-/*  FUNCTIONS                                                        																					   */
+/*  FUNCTIONS                                                                                                                                        	   */
 /* ================================================================== */
 /* ================================================================== */
 
@@ -234,49 +211,54 @@ static errno_t help_function()
 
 static errno_t customCONFsetup()
 {
-
     if (data.fpsptr != NULL)
     {
-        FUNCTION_PARAMETER_STRUCT fps = *data.fpsptr;
+        data.fpsptr->parray[fpi_temperature].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_temperature].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_temperature].val.i64[1] = -90; // min
+        data.fpsptr->parray[fpi_temperature].val.i64[2] = 20; // max
 
-		// OGNOTE
-		// here we can modify default settings as needed :
-		// set min/max and enforce limits
-		// make parameters editable while process runs etc...
-		//
+        data.fpsptr->parray[fpi_readoutmode].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_readoutmode].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_readoutmode].val.i64[1] = 1; // min
+        data.fpsptr->parray[fpi_readoutmode].val.i64[2] = 12; // max
 
-		data.fpsptr->parray[fpi_temperature].fpflag |= FPFLAG_WRITERUN;
-		data.fpsptr->parray[fpi_temperature].fpflag |= FPFLAG_MINLIMIT;
-		data.fpsptr->parray[fpi_temperature].fpflag |= FPFLAG_MAXLIMIT;
-		data.fpsptr->parray[fpi_temperature].val.i64[1] = -90; // min
-		data.fpsptr->parray[fpi_temperature].val.i64[1] = 20; // max
+        data.fpsptr->parray[fpi_binning].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_binning].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_binning].val.i64[1] = 1; // min
+        data.fpsptr->parray[fpi_binning].val.i64[2] = 16; // max
 
-		data.fpsptr->parray[fpi_readoutmode].fpflag |= FPFLAG_WRITERUN;
-		data.fpsptr->parray[fpi_readoutmode].fpflag |= FPFLAG_MINLIMIT;
-		data.fpsptr->parray[fpi_readoutmode].fpflag |= FPFLAG_MAXLIMIT;
-		data.fpsptr->parray[fpi_readoutmode].val.i64[1] = 1; // min
-		data.fpsptr->parray[fpi_readoutmode].val.i64[1] = 12; // max
+        data.fpsptr->parray[fpi_emgain].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_emgain].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_emgain].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_emgain].val.i64[1] = 1; // min
+        data.fpsptr->parray[fpi_emgain].val.i64[2] = 1000; // max
 
-		data.fpsptr->parray[fpi_binning].fpflag |= FPFLAG_WRITERUN;
-		data.fpsptr->parray[fpi_binning].fpflag |= FPFLAG_MINLIMIT;
-		data.fpsptr->parray[fpi_binning].fpflag |= FPFLAG_MAXLIMIT;
-		data.fpsptr->parray[fpi_binning].val.i64[1] = 1; // min
-		data.fpsptr->parray[fpi_binning].val.i64[1] = 16; // max
+        data.fpsptr->parray[fpi_exposuretime].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_exposuretime].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_exposuretime].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_exposuretime].val.f32[1] = 0; // min
+        data.fpsptr->parray[fpi_exposuretime].val.f32[2] = 1000; // max
 
+        data.fpsptr->parray[fpi_autogain].fpflag |= FPFLAG_WRITERUN;
 
+        data.fpsptr->parray[fpi_autogain_low].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_low].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_low].val.i64[1] = 0; // min
+        data.fpsptr->parray[fpi_autogain_low].val.i64[2] = 65535; // max
 
-        /*
-            long widthOffsetDefault[4] = { 0, 0, 70, 0 };
-            long heightOffsetDefault[4] = { 0, 0, 70, 0 };
-        	long emgainDefault[4] = { 1, 1, 1000, 1 };
-            float exposuretimeDefault[4] = { 0, 0, 1e3, 0 };
-            long autogainLowerLimit[4] = { 60000, 0, 65535, 60000 };
-            long autogainUpperLimit[4] = { 75000, 0, 4*65535, 75000 };
-            long autogainFramewait[4] = { 500, 0, 5000, 500 };
-        */
+        data.fpsptr->parray[fpi_autogain_high].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_high].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_high].val.i64[1] = 0; // min
+        data.fpsptr->parray[fpi_autogain_high].val.i64[2] = 4*65535; // max
 
-        emgain_cnt0 = fps.parray[fpi_emgain].cnt0;
-        exposuretime_cnt0 = fps.parray[fpi_exposuretime].cnt0;
+        data.fpsptr->parray[fpi_autogain_framewait].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_framewait].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_framewait].val.i64[1] = 0; // min
+        data.fpsptr->parray[fpi_autogain_framewait].val.i64[2] = 10e3; // max
+
+        emgain_cnt0 = data.fpsptr->parray[fpi_emgain].cnt0;
+        exposuretime_cnt0 = data.fpsptr->parray[fpi_exposuretime].cnt0;
     }
 
     return RETURN_SUCCESS;
@@ -284,34 +266,31 @@ static errno_t customCONFsetup()
 
 
 static errno_t customCONFcheck() {
-
-    FUNCTION_PARAMETER_STRUCT fps = *data.fpsptr;
-
-    if(fps.parray[fpi_emgain].cnt0 != emgain_cnt0)
+    if(data.fpsptr->parray[fpi_emgain].cnt0 != emgain_cnt0)
     {
-        emgain_cnt0 = fps.parray[fpi_emgain].cnt0;
+        emgain_cnt0 = data.fpsptr->parray[fpi_emgain].cnt0;
 
-        fps.parray[fpi_emgain].userflag |= FPFLAG_KALAO_UPDATED;
+        data.fpsptr->parray[fpi_emgain].userflag |= FPFLAG_KALAO_UPDATED;
 
-        if(fps.parray[fpi_emgain].userflag & FPFLAG_KALAO_AUTOGAIN) {
-            fps.parray[fpi_emgain].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
+        if(data.fpsptr->parray[fpi_emgain].userflag & FPFLAG_KALAO_AUTOGAIN) {
+            data.fpsptr->parray[fpi_emgain].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
         } else {
-            fps.parray[fpi_autogain].userflag &= ~FPFLAG_ONOFF;
-            fps.parray[fpi_autogain].cnt0++;
+            data.fpsptr->parray[fpi_autogain].userflag &= ~FPFLAG_ONOFF;
+            data.fpsptr->parray[fpi_autogain].cnt0++;
         }
     }
 
-    if(fps.parray[fpi_exposuretime].cnt0 != exposuretime_cnt0)
+    if(data.fpsptr->parray[fpi_exposuretime].cnt0 != exposuretime_cnt0)
     {
-        exposuretime_cnt0 = fps.parray[fpi_exposuretime].cnt0;
+        exposuretime_cnt0 = data.fpsptr->parray[fpi_exposuretime].cnt0;
 
-        fps.parray[fpi_exposuretime].userflag |= FPFLAG_KALAO_UPDATED;
+        data.fpsptr->parray[fpi_exposuretime].userflag |= FPFLAG_KALAO_UPDATED;
 
-        if(fps.parray[fpi_exposuretime].userflag & FPFLAG_KALAO_AUTOGAIN) {
-            fps.parray[fpi_exposuretime].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
+        if(data.fpsptr->parray[fpi_exposuretime].userflag & FPFLAG_KALAO_AUTOGAIN) {
+            data.fpsptr->parray[fpi_exposuretime].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
         } else {
-            fps.parray[fpi_autogain].userflag &= ~FPFLAG_ONOFF;
-            fps.parray[fpi_autogain].cnt0++;
+            data.fpsptr->parray[fpi_autogain].userflag &= ~FPFLAG_ONOFF;
+            data.fpsptr->parray[fpi_autogain].cnt0++;
         }
     }
 
@@ -328,16 +307,13 @@ static errno_t customCONFcheck() {
 
 
 
-static int read_exposure_params(
-    NUVU_AUTOGAIN_PARAMS *autogain_params,
-    char *fname
-)
+static int read_exposure_params(NUVU_AUTOGAIN_PARAMS *autogain_params)
 {
     int NBautogain_params = 0;
 
     FILE *fp;
 
-    fp = fopen(fname, "r");
+    fp = fopen(autogain_params_fname, "r");
     if(fp == NULL)
     {
         perror("Unable to open file!");
@@ -443,8 +419,8 @@ void load_bias_and_flat(
     char biasfile[255];
     char flatfile[255];
 
-    sprintf(biasfile, "bias/bias_%02ldC_%02ldrom_%01ldb_%04ldg.fits", *temperature, *readoutmode, *binning, *emgain);
-    sprintf(flatfile, "flat/flat_%02ldC_%02ldrom_%01ldb_%04ldg.fits", *temperature, *readoutmode, *binning, *emgain);
+    sprintf(biasfile, bias_fname, *temperature, *readoutmode, *binning, *emgain);
+    sprintf(flatfile, flat_fname, *temperature, *readoutmode, *binning, *emgain);
 
     imageID biastmpID = -1;
     imageID flattmpID = -1;
@@ -537,22 +513,20 @@ static errno_t compute_function()
 
     int width = 64;
     int height = 64;
+    int width_in = 520;
+    int height_in = 70;
 
     FUNCTION_PARAMETER_STRUCT fps_shwfs;
     function_parameter_struct_connect("shwfs_process", &fps_shwfs, FPSCONNECT_SIMPLE);
     float* fluxPtr = functionparameter_GetParamPtr_FLOAT32(&fps_shwfs, ".flux_subaperture");
     long* fluxCnt = &fps_shwfs.parray[functionparameter_GetParamIndex(&fps_shwfs, ".flux_subaperture")].cnt0;
 
-
-
     INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
-
-
-
 
     /********** Allocate streams **********/
     processinfo_WriteMessage(processinfo, "Allocating streams");
 
+    imageID IDin = processinfo->triggerstreamID;
     imageID IDout = image_ID("nuvu_stream");
     imageID flatID = image_ID("nuvu_flat");
     imageID biasID = image_ID("nuvu_bias");
@@ -569,17 +543,24 @@ static errno_t compute_function()
 
         free(imsize);
     }
+    /********** Configure camera **********/
+
+    //error =
+    update_exposuretime(*exposuretime);
+
+    //error =
+    update_emgain(*emgain);
 
     /********** Load bias and flat **********/
 
     processinfo_WriteMessage(processinfo, "Loading flat and bias");
     load_bias_and_flat(processinfo, biasID, flatID);
 
-
     /********** Load exposure parameters **********/
+
     NUVU_AUTOGAIN_PARAMS *autogain_params = (NUVU_AUTOGAIN_PARAMS*) malloc(sizeof(NUVU_AUTOGAIN_PARAMS)*MAXNB_AUTOGAIN_PARAMS);
 
-    int NBautogain_params = read_exposure_params(autogain_params, autogain_params_fname);
+    int NBautogain_params = read_exposure_params(autogain_params);
     int current_autogain_param = 0;
     long fluxCnt_old = *fluxCnt;
     long autogainCnt_old = data.fpsptr->parray[fpi_autogain].cnt0;
@@ -596,7 +577,6 @@ static errno_t compute_function()
         // Explanation: cacao set flag to on and THEN increment cnt0, and our code can run in-between this two actions
         autogainCnt_old--;
     }
-
 
     /********** Start camera **********/
 
@@ -625,7 +605,6 @@ static errno_t compute_function()
         //error =
         update_emgain(*emgain);
 
-
         load_bias_and_flat(processinfo, biasID, flatID);
 
         data.fpsptr->parray[fpi_emgain].userflag &= ~FPFLAG_KALAO_UPDATED;
@@ -633,27 +612,15 @@ static errno_t compute_function()
         processinfo_WriteMessage(processinfo, "Looping");
     }
 
-
-    /***** Read image from camera *****/
-    imageID IDin = processinfo->triggerstreamID;
-
-
-
-
-
-
-
     /***** Write output stream *****/
 
     data.image[IDout].md[0].write = 1;
 
     for(int ii=0; ii<width; ii++)
         for(int jj=0; jj<height; jj++)
-            //TODO: mettre 8* au bon endroit
-            data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[8*jj*width+ii]);
+            data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[(jj+4)*width_in+8*(width-ii)] - data.image[biasID].array.F[jj*width+ii])  * data.image[flatID].array.F[jj*width+ii];
 
     processinfo_update_output_stream(processinfo, IDout);
-
 
     /***** Autogain *****/
 
@@ -674,8 +641,8 @@ static errno_t compute_function()
             // Wait because exposure parameters will be changed
             fluxCnt_old = *fluxCnt;
         }
-        else if(   (fluxCnt_old < LONG_MAX - *autogainFramewait  && *fluxCnt > fluxCnt_old + *autogainFramewait)
-                   || (fluxCnt_old > LONG_MAX - *autogainFramewait && *fluxCnt > LONG_MIN - (LONG_MAX - fluxCnt_old) + *autogainFramewait))
+        else if(   (fluxCnt_old < LONG_MAX - *autogain_framewait  && *fluxCnt > fluxCnt_old + *autogain_framewait)
+                   || (fluxCnt_old > LONG_MAX - *autogain_framewait && *fluxCnt > LONG_MIN - (LONG_MAX - fluxCnt_old) + *autogain_framewait))
         {
             if(*fluxPtr > (float) *autogain_high)
             {
@@ -705,16 +672,13 @@ static errno_t compute_function()
         }
     }
 
-
+    INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
     function_parameter_struct_disconnect(&fps_shwfs);
 
-
-    INSERT_STD_PROCINFO_COMPUTEFUNC_END
-
+    free(autogain_params);
 
     DEBUG_TRACE_FEXIT();
-
 
     return RETURN_SUCCESS;
 }

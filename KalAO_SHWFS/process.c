@@ -17,7 +17,7 @@
 
 typedef struct
 {
-	// lower index pixel coords in input raw image
+    // lower index pixel coords in input raw image
     uint32_t Xraw;
     uint32_t Yraw;
 
@@ -39,9 +39,104 @@ typedef struct
 
 #define MAXNB_SPOT 1000
 
+static char *slopes_streamname;
+static long fpi_slopes_streamname;
+
+static char *spotcoords_fname;
+static long fpi_spotcoords_fname;
+
+static int64_t *algorithm;
+static long fpi_algorithm;
+
+static float *flux_averagecoeff;
+static long fpi_flux_averagecoeff;
+
+static float *flux_subaperture;
+static long fpi_flux_subaperture;
+
+static float *residual;
+static long fpi_residual;
+
+static float *slope_x;
+static long fpi_slope_x;
+
+static float *slope_y;
+static long fpi_slope_y;
 
 static CLICMDARGDEF farg[] =
 {
+    {
+        CLIARG_STREAM,
+        ".outWFS",
+        "Output stream",
+        "",
+        CLIARG_VISIBLE_DEFAULT,
+        (void **) &slopes_streamname,
+        &fpi_slopes_streamname
+    },
+    {
+        CLIARG_FILENAME,
+        ".spotcoords",
+        "SH spot coordinates",
+        "spots.txt",
+        CLIARG_VISIBLE_DEFAULT,
+        (void **) &spotcoords_fname,
+        &fpi_spotcoords_fname
+    },
+    {
+        CLIARG_INT64,
+        ".algorithm",
+        "Algorithm (0 = Quadcell, 1 = Center of mass)",
+        "0",
+        CLIARG_VISIBLE_DEFAULT,
+        (void **) &algorithm,
+        &fpi_algorithm
+    },
+    {
+        CLIARG_FLOAT32,
+        ".flux_averagecoeff",
+        "Flux averaging coefficient",
+        "0.1",
+        CLIARG_VISIBLE_DEFAULT,
+        (void **) &flux_averagecoeff,
+        &fpi_flux_averagecoeff
+    },
+    {
+        CLIARG_FLOAT32,
+        ".flux_subaperture",
+        "Max flux in a subaperture",
+        "0",
+        CLIARG_OUTPUT_DEFAULT,
+        (void **) &flux_subaperture,
+        &fpi_flux_subaperture
+    },
+    {
+        CLIARG_FLOAT32,
+        ".residual",
+        "RMS Residual",
+        "0",
+        CLIARG_OUTPUT_DEFAULT,
+        (void **) &residual,
+        &fpi_residual
+    },
+    {
+        CLIARG_FLOAT32,
+        ".slope_x",
+        "Average Tip",
+        "0",
+        CLIARG_OUTPUT_DEFAULT,
+        (void **) &slope_x,
+        &fpi_slope_x
+    },
+    {
+        CLIARG_FLOAT32,
+        ".slope_y",
+        "Average Tilt",
+        "0",
+        CLIARG_OUTPUT_DEFAULT,
+        (void **) &slope_y,
+        &fpi_slope_y
+    }
 };
 
 
@@ -66,39 +161,29 @@ static errno_t help_function()
 
 static errno_t customCONFsetup()
 {
-	FPS_CONNECT(data.FPS_name, FPSCONNECT_CONF);
+    if (data.fpsptr != NULL)
+    {
+        data.fpsptr->parray[fpi_algorithm].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_algorithm].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_algorithm].val.i64[1] = 0; // min
+        data.fpsptr->parray[fpi_algorithm].val.i64[2] = 1; // max
 
-	uint64_t FPFLAG = FPFLAG_DEFAULT_INPUT | FPFLAG_MINLIMIT | FPFLAG_MAXLIMIT;  // required to enforce the min and max
-
-    //FPS_ADDPARAM_STREAM_IN   (fpi_stream_inname,  ".rawWFSin", "input raw WFS stream", NULL);
-    FPS_ADDPARAM_STREAM_OUT  (fpi_stream_outname, ".outWFS",   "output stream");
-    FPS_ADDPARAM_FILENAME_IN (fpi_spotsfname, ".spotcoords", "SH spot coordinates", NULL);
-
-    long algorithmDefault[4] = { 1, 0, 1, 1 };
-	long fpi_algorithm = 0;
-	function_parameter_add_entry(&fps, ".algorithm", "Algorithm (0 = Quadcell, 1 = Center of mass)",
-                            FPTYPE_INT64, FPFLAG, &algorithmDefault, &fpi_algorithm);
-
-    float flux_averagecoeffDefault[4] = { 0.1, 0, 1, 0.1 };
-	long fpi_tilt = 0;
-	function_parameter_add_entry(&fps, ".flux_averagecoeff", "Flux averaging coefficient",
-                            FPTYPE_FLOAT32, FPFLAG, &flux_averagecoeffDefault, &fpi_tilt);
-
-    FPS_ADDPARAM_FLT32_OUT   (fpi_flux, ".flux_subaperture", "Max flux in a subaperture");
-    FPS_ADDPARAM_FLT32_OUT   (fpi_residual, ".residual", "RMS Residual");
-    FPS_ADDPARAM_FLT32_OUT   (fpi_slope_x, ".slope_x", "Average Tip");
-    FPS_ADDPARAM_FLT32_OUT   (fpi_slope_y, ".slope_y", "Average Tilt");
+        data.fpsptr->parray[fpi_flux_averagecoeff].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_flux_averagecoeff].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_flux_averagecoeff].val.f32[1] = 0; // min
+        data.fpsptr->parray[fpi_flux_averagecoeff].val.f32[2] = 1; // max
+    }
 
     return RETURN_SUCCESS;
 }
 
-static int read_spots_coords(SHWFS_SPOTS *spotcoord, char *fname)
+static int read_spots_coords(SHWFS_SPOTS *spotcoord)
 {
     int NBspot = 0;
 
     FILE *fp;
 
-    fp = fopen(fname, "r");
+    fp = fopen(spotcoords_fname, "r");
     if(fp == NULL)
     {
         perror("Unable to open file!");
@@ -130,7 +215,7 @@ static int read_spots_coords(SHWFS_SPOTS *spotcoord, char *fname)
             }
         }
     }
-	printf("Loaded %d spots\n", NBspot);
+    printf("Loaded %d spots\n", NBspot);
 
     fclose(fp);
 
@@ -139,242 +224,225 @@ static int read_spots_coords(SHWFS_SPOTS *spotcoord, char *fname)
 
 static errno_t compute_function()
 {
-	FPS_CONNECT(data.FPS_name, FPSCONNECT_RUN);
-	INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
+    DEBUG_TRACE_FSTART();
 
-    // ===================================
-    // ### GET FUNCTION PARAMETER VALUES
-    // ===================================
-    //char rawWFS_streamname[FUNCTION_PARAMETER_STRMAXLEN + 1];
-    //strncpy(rawWFS_streamname, functionparameter_GetParamPtr_STRING(&fps, ".rawWFSin"), FUNCTION_PARAMETER_STRMAXLEN);
+    INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
 
-    char slopes_streamname[FUNCTION_PARAMETER_STRMAXLEN + 1];
-    strncpy(slopes_streamname, functionparameter_GetParamPtr_STRING(&fps, ".outWFS"), FUNCTION_PARAMETER_STRMAXLEN);
+    /********** Load spots coordinates **********/
 
-    char spotcoords_fname[FUNCTION_PARAMETER_STRMAXLEN + 1];
-    strncpy(spotcoords_fname, functionparameter_GetParamPtr_STRING(&fps, ".spotcoords"), FUNCTION_PARAMETER_STRMAXLEN);
-
-    float flux_averagecoeff = functionparameter_GetParamValue_FLOAT32(&fps, ".flux_averagecoeff");
-    long algorithm = functionparameter_GetParamValue_INT64(&fps, ".algorithm");
-
-	/********** Load spots coordinates **********/
-
-	// Allocate spots
-	SHWFS_SPOTS *spotcoord = (SHWFS_SPOTS*) malloc(sizeof(SHWFS_SPOTS)*MAXNB_SPOT);
+    // Allocate spots
+    SHWFS_SPOTS *spotcoord = (SHWFS_SPOTS*) malloc(sizeof(SHWFS_SPOTS)*MAXNB_SPOT);
 
     char msgstring[200];
     sprintf(msgstring, "Loading spot <- %s", spotcoords_fname);
     processinfo_WriteMessage(processinfo, msgstring);
 
-	int NBspot = read_spots_coords(spotcoord, spotcoords_fname);
+    int NBspot = read_spots_coords(spotcoord);
 
-	char flux_streamname[FUNCTION_PARAMETER_STRMAXLEN + 6];
-	sprintf(flux_streamname, "%s_flux", slopes_streamname);
+    char flux_streamname[FUNCTION_PARAMETER_STRMAXLEN + 6];
+    sprintf(flux_streamname, "%s_flux", slopes_streamname);
 
-	// size of output 2D representation
-	imageID IDin = processinfo->triggerstreamID;
-	uint32_t sizeinX = data.image[IDin].md[0].size[0];
-	uint32_t sizeinY = data.image[IDin].md[0].size[1];
-	uint32_t sizeoutX = 0;
-	uint32_t sizeoutY = 0;
-	for(int spot=0; spot<NBspot; spot++)
-	{
-		if ( spotcoord[spot].Xout + 1 > sizeoutX )
-		{
-			sizeoutX = spotcoord[spot].Xout+1;
-		}
-		if ( spotcoord[spot].Yout + 1 > sizeoutY )
-		{
-			sizeoutY = spotcoord[spot].Yout+1;
-		}
-	}
+    // size of output 2D representation
+    imageID IDin = processinfo->triggerstreamID;
+    uint32_t sizeinX = data.image[IDin].md[0].size[0];
+    uint32_t sizeinY = data.image[IDin].md[0].size[1];
+    uint32_t sizeoutX = 0;
+    uint32_t sizeoutY = 0;
+    for(int spot=0; spot<NBspot; spot++)
+    {
+        if ( spotcoord[spot].Xout + 1 > sizeoutX )
+        {
+            sizeoutX = spotcoord[spot].Xout+1;
+        }
+        if ( spotcoord[spot].Yout + 1 > sizeoutY )
+        {
+            sizeoutY = spotcoord[spot].Yout+1;
+        }
+    }
 
-	for(int spot=0; spot<NBspot; spot++)
-	{
-		spotcoord[spot].XYout_dx = spotcoord[spot].Yout * (2*sizeoutX) + spotcoord[spot].Xout;
-		spotcoord[spot].XYout_dy = spotcoord[spot].Yout * (2*sizeoutX) + spotcoord[spot].Xout + sizeoutX;
-		spotcoord[spot].fluxout  = spotcoord[spot].Yout * (sizeoutX)   + spotcoord[spot].Xout;
-	}
+    for(int spot=0; spot<NBspot; spot++)
+    {
+        spotcoord[spot].XYout_dx = spotcoord[spot].Yout * (2*sizeoutX) + spotcoord[spot].Xout;
+        spotcoord[spot].XYout_dy = spotcoord[spot].Yout * (2*sizeoutX) + spotcoord[spot].Xout + sizeoutX;
+        spotcoord[spot].fluxout  = spotcoord[spot].Yout * (sizeoutX)   + spotcoord[spot].Xout;
+    }
 
-	printf("Output 2D representation: %d x %d\n", sizeoutX, sizeoutY);
+    printf("Output 2D representation: %d x %d\n", sizeoutX, sizeoutY);
 
-	// create output arrays
-	uint32_t *imsizearray = (uint32_t*) malloc(sizeof(uint32_t)*2);
+    // create output arrays
+    uint32_t *imsizearray = (uint32_t*) malloc(sizeof(uint32_t)*2);
 
     // Identifiers for output streams
     imageID IDslopes = image_ID(slopes_streamname);
     imageID IDflux = image_ID(flux_streamname);
 
-	// slopes
-	imsizearray[0] = sizeoutX * 2;
-	imsizearray[1] = sizeoutY;
-	create_image_ID(slopes_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &IDslopes);
+    {
+        // slopes
+        imsizearray[0] = sizeoutX * 2;
+        imsizearray[1] = sizeoutY;
+        create_image_ID(slopes_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &IDslopes);
 
-	// flux
-	imsizearray[0] = sizeoutX;
-	imsizearray[1] = sizeoutY;
-	create_image_ID(flux_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &IDflux);
+        // flux
+        imsizearray[0] = sizeoutX;
+        imsizearray[1] = sizeoutY;
+        create_image_ID(flux_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &IDflux);
 
-	free(imsizearray);
+        free(imsizearray);
+    }
 
-	/********** Setup and loop **********/
-
-    float flux_subaperture = 0;
+    /********** Setup and loop **********/
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
 
-            float flux_max = 0;
-            float residual = 0;
-            float slope_x = 0;
-            float slope_y = 0;
+    float new_flux_max = 0;
+    float new_residual = 0;
+    float new_slope_x = 0;
+    float new_slope_y = 0;
 
-            for(int spot=0; spot<NBspot; spot++)
-            {
-				float dx = 0;
-				float dy = 0;
-				float flux = 0;
+    for(int spot=0; spot<NBspot; spot++)
+    {
+        float dx = 0;
+        float dy = 0;
+        float flux = 0;
 
-				/***** Quadcell *****/
+        /***** Quadcell *****/
 
-				if(algorithm == 0) {
-					float f00 = data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw    ]
-							  + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 1]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw    ]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1];
+        if(algorithm == 0) {
+            float f00 = data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw    ]
+                      + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 1]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw    ]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1];
 
-					float f01 = data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 2]
-							  + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 3]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 2]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 3];
+            float f01 = data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 2]
+                      + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 3]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 2]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 3];
 
-					float f10 = data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw    ]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 1]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw    ]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1];
+            float f10 = data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw    ]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 1]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw    ]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1];
 
-					float f11 = data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 2]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 3]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
-							  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
+            float f11 = data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 2]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 3]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
+                      + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
 
-					flux = f00 + f01 + f10 + f11;
-					dx = (f01 + f11) - (f00 + f10);
-					dx /= flux;
-					dy = (f10 + f11) - (f00 + f01);
-					dy /= flux;
-				}
+            flux = f00 + f01 + f10 + f11;
+            dx = (f01 + f11) - (f00 + f10);
+            dx /= flux;
+            dy = (f10 + f11) - (f00 + f01);
+            dy /= flux;
+        }
 
-				/***** Center of mass *****/
+        /***** Center of mass *****/
 
-				else {
-					dx =
-					   - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw    ]
-					   - 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw    ]
-					   - 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw    ]
-					   - 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw    ]
-					   - 0.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 1]
-					   - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1]
-					   - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 1]
-					   - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1]
-					   + 0.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 2]
-					   + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 2]
-					   + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 2]
-					   + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
-					   + 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 3]
-					   + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 3]
-					   + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 3]
-					   + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
+        else {
+            dx =
+               - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw    ]
+               - 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw    ]
+               - 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw    ]
+               - 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw    ]
+               - 0.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 1]
+               - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1]
+               - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 1]
+               - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1]
+               + 0.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 2]
+               + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 2]
+               + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 2]
+               + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
+               + 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 3]
+               + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 3]
+               + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 3]
+               + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
 
-					dy =
-					   - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw    ]
-					   - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 1]
-					   - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 2]
-					   - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 3]
-					   - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw    ]
-					   - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1]
-					   - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 2]
-					   - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 3]
-					   + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw    ]
-					   + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 1]
-					   + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 2]
-					   + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 3]
-					   + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw    ]
-					   + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1]
-					   + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
-					   + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
+            dy =
+               - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw    ]
+               - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 1]
+               - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 2]
+               - 1.5 * data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 3]
+               - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw    ]
+               - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1]
+               - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 2]
+               - 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 3]
+               + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw    ]
+               + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 1]
+               + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 2]
+               + 0.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 3]
+               + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw    ]
+               + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1]
+               + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
+               + 1.5 * data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
 
-					flux = data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw    ]
-						 + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 1]
-						 + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 2]
-						 + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 3]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw    ]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 2]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 3]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw    ]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 1]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 2]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 3]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw    ]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
-						 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
+            flux = data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw    ]
+                 + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 1]
+                 + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 2]
+                 + data.image[IDin].array.F[ spotcoord[spot].Yraw      * sizeinX + spotcoord[spot].Xraw + 3]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw    ]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 2]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 3]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw    ]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 1]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 2]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 2) * sizeinX + spotcoord[spot].Xraw + 3]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw    ]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
+                 + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
 
-					dx /= flux;
-					dy /= flux;
-				}
+            dx /= flux;
+            dy /= flux;
+        }
 
-				/***** Common part *****/
+        /***** Common part *****/
 
-				spotcoord[spot].dx = dx;
-				spotcoord[spot].dy = dy;
-				spotcoord[spot].flux = flux;
+        spotcoord[spot].dx = dx;
+        spotcoord[spot].dy = dy;
+        spotcoord[spot].flux = flux;
 
-				if(flux > flux_max) {
-				    flux_max = flux;
-				}
+        if(flux > new_flux_max) {
+            new_flux_max = flux;
+        }
 
-				residual += dx*dx + dy*dy;
-				slope_x += dx;
-				slope_y += dy;
-			}
+        new_residual += dx*dx + dy*dy;
+        new_slope_x += dx;
+        new_slope_y += dy;
+    }
 
-			flux_subaperture = flux_averagecoeff * flux_max + (1.0-flux_averagecoeff) * flux_subaperture;
-			residual = sqrt(residual / NBspot);
-			slope_x /= NBspot;
-			slope_y /= NBspot;
+    *flux_subaperture = *flux_averagecoeff * new_flux_max + (1.0-*flux_averagecoeff) * *flux_subaperture;
+    *residual = sqrt(new_residual / NBspot);
+    *slope_x = new_slope_x/NBspot;
+    *slope_y = new_slope_y/NBspot;
 
-			functionparameter_SetParamValue_FLOAT32(&fps, ".flux_subaperture", flux_subaperture);
-			functionparameter_SetParamValue_FLOAT32(&fps, ".residual", residual);
-			functionparameter_SetParamValue_FLOAT32(&fps, ".slope_x", slope_x);
-			functionparameter_SetParamValue_FLOAT32(&fps, ".slope_y", slope_y);
+    /***** Write slopes *****/
 
-			/***** Write slopes *****/
+    data.image[IDslopes].md[0].write = 1;
 
-            data.image[IDslopes].md[0].write = 1;
+    for(int spot=0; spot<NBspot; spot++)
+    {
+        data.image[IDslopes].array.F[spotcoord[spot].XYout_dx] = spotcoord[spot].dx;
+        data.image[IDslopes].array.F[spotcoord[spot].XYout_dy] = spotcoord[spot].dy;
+    }
 
-            for(int spot=0; spot<NBspot; spot++)
-            {
-				data.image[IDslopes].array.F[spotcoord[spot].XYout_dx] = spotcoord[spot].dx;
-				data.image[IDslopes].array.F[spotcoord[spot].XYout_dy] = spotcoord[spot].dy;
-			}
+    processinfo_update_output_stream(processinfo, IDslopes);
 
-            processinfo_update_output_stream(processinfo, IDslopes);
+    /***** Write flux stream *****/
 
-			/***** Write flux stream *****/
+    data.image[IDflux].md[0].write = 1;
 
-            data.image[IDflux].md[0].write = 1;
+    for(int spot=0; spot<NBspot; spot++)
+    {
+        data.image[IDflux].array.F[spotcoord[spot].fluxout] = spotcoord[spot].flux;
+    }
 
-            for(int spot=0; spot<NBspot; spot++)
-            {
-				data.image[IDflux].array.F[spotcoord[spot].fluxout] = spotcoord[spot].flux;
-			}
-
-            processinfo_update_output_stream(processinfo, IDflux);
+    processinfo_update_output_stream(processinfo, IDflux);
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
-	free(spotcoord);
+    free(spotcoord);
+
+    DEBUG_TRACE_FEXIT();
 
     return RETURN_SUCCESS;
 }

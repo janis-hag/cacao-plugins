@@ -53,5 +53,5 @@ install(PROGRAMS ${SCRIPTFILES} DESTINATION bin)
 
 # NUVU SETTINGS
 # =====================================================================
-include_directories ("/opt/NuvuCameras/include/")
-target_link_libraries(${LIBNAME} PUBLIC /opt/NuvuCameras/lib/libnuvu.so)
+#include_directories ("/opt/NuvuCameras/include/")
+#target_link_libraries(${LIBNAME} PUBLIC /opt/NuvuCameras/lib/libnuvu.so)
