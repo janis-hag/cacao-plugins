@@ -324,7 +324,7 @@ static errno_t compute_function()
                 if (dm_array[ii] > 1) {
 					dm_array[ii] = 1;
 				}
-                else if (dm_array[ii]) < 0 {
+                else if (dm_array[ii] < 0) {
 					dm_array[ii] = 0;
 				}
 			}
