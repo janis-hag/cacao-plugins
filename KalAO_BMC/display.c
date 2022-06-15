@@ -309,17 +309,51 @@ static errno_t compute_function()
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
 
-            for(ii=0; ii<10; ii++)
+            for(ii=0; ii<10; ii++){
                 dm_array[ii] = (data.image[IDDMin].array.F[ii+1] + *zernike_piston)/3.5+0.5;
+                if (dm_array[ii] > 1) {
+					dm_array[ii] = 1;
+				}
+                else if (dm_array[ii] < 0) {
+					dm_array[ii] = 0;
+				}
+			}
 
-            for(; ii<130; ii++)
+            for(; ii<130; ii++){
                 dm_array[ii] = (data.image[IDDMin].array.F[ii+2] + *zernike_piston)/3.5+0.5;
+                if (dm_array[ii] > 1) {
+					dm_array[ii] = 1;
+				}
+                else if (dm_array[ii]) < 0 {
+					dm_array[ii] = 0;
+				}
+			}
 
-            for(; ii<140; ii++)
+            for(; ii<140; ii++){
                 dm_array[ii] = (data.image[IDDMin].array.F[ii+3] + *zernike_piston)/3.5+0.5;
+                if (dm_array[ii] > 1) {
+					dm_array[ii] = 1;
+				}
+                else if (dm_array[ii] < 0) {
+					dm_array[ii] = 0;
+				}
+			}
 
             dm_array[155] = data.image[IDTTMin].array.F[0]/5.0+0.5;
+            if (dm_array[155] > 1) {
+				dm_array[155] = 1;
+			}
+			else if (dm_array[155] < 0) {
+				dm_array[155] = 0;
+			}
+
             dm_array[156] = data.image[IDTTMin].array.F[1]/5.0+0.5;
+            if (dm_array[156] > 1) {
+				dm_array[156] = 1;
+			}
+			else if (dm_array[156] < 0) {
+				dm_array[156] = 0;
+			}
 
             error = BMCSetArray(&dm, dm_array, map_lut);
             if (error) {
