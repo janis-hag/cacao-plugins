@@ -6,7 +6,7 @@
 
 #define _GNU_SOURCE
 #include "CommandLineInterface/CLIcore.h"
-#include "CommandLineInterface/fps_GetParamIndex.h"
+#include "CommandLineInterface/fps/fps_GetParamIndex.h"
 #include "COREMOD_iofits/loadfits.h"
 #include "COREMOD_iofits/file_exists.h"
 #include "COREMOD_iofits/is_fits_file.h"

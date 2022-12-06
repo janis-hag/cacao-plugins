@@ -27,7 +27,7 @@ fi
 echo "using python at ${pythonexec}"
 
 
-cmake .. -Dbuild_python_module=ON -DPYTHON_EXECUTABLE=${pythonexec} -DCMAKE_INSTALL_PREFIX=$MILK_INSTALL_ROOT
+cmake .. -Dbuild_python_module=ON -DPYTHON_EXECUTABLE=${pythonexec} -DCMAKE_INSTALL_PREFIX=$MILK_INSTALL_ROOT -DUSE_CUDA=ON -DUSE_MAGMA=ON
 # cmake .. -DCMAKE_INSTALL_PREFIX=$MILK_INSTALL_ROOT
 
 NCPUS=`fgrep processor /proc/cpuinfo | wc -l`
