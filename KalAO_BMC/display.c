@@ -376,6 +376,7 @@ static errno_t compute_function()
 
             /***** Output zernike in DM stream *****/
 
+/*
             long zernike_manual_cnt_sum = data.fpsptr->parray[fpi_zernike_tip].cnt0
                                        + data.fpsptr->parray[fpi_zernike_tilt].cnt0
                                        + data.fpsptr->parray[fpi_zernike_defocus].cnt0
@@ -398,9 +399,10 @@ static errno_t compute_function()
 
                 processinfo_update_output_stream(processinfo, IDDMzernike_manual);
             }
-
+*/
             /***** Output zernike in DM stream *****/
 
+/*
             //if(zernike_from_stream_cnt_old != data.image[IDDMzernike_from_stream].md[0].cnt0) {
 		printf("New zernike %ld\n", data.image[IDDMzernike_from_stream].md[0].cnt0);
                 zernike_from_stream_cnt_old = data.image[IDDMzernike_from_stream].md[0].cnt0;
@@ -418,6 +420,7 @@ static errno_t compute_function()
 
                 processinfo_update_output_stream(processinfo, IDDMzernike_from_stream);
             //}
+*/
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
