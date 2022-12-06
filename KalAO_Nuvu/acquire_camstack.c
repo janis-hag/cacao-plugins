@@ -316,7 +316,7 @@ static int read_exposure_params(NUVU_AUTOGAIN_PARAMS *autogain_params)
     fp = fopen(autogain_params_fname, "r");
     if(fp == NULL)
     {
-        perror("Unable to open file! %s",  autogain_params_fname);
+        perror("Unable to open file!") // %s",  autogain_params_fname);
         exit(1);
     }
 
