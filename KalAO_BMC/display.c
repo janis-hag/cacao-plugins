@@ -363,6 +363,8 @@ static errno_t compute_function()
 
             /***** Output offset in TTM stream *****/
 
+			// This will need to be removed from the loop once the TTM loop will work.
+
             long ttmOffsetCnt_sum = data.fpsptr->parray[fpi_ttm_tip_offset].cnt0
                                   + data.fpsptr->parray[fpi_ttm_tilt_offset].cnt0;
 
@@ -377,8 +379,10 @@ static errno_t compute_function()
                 processinfo_update_output_stream(processinfo, IDTTMoffset);
             }
 
+
             /***** Output zernike in DM stream *****/
 
+			/*
             long zernikeCnt_sum = data.fpsptr->parray[fpi_zernike_tip].cnt0
                                 + data.fpsptr->parray[fpi_zernike_tilt].cnt0
                                 + data.fpsptr->parray[fpi_zernike_defocus].cnt0
@@ -401,6 +405,7 @@ static errno_t compute_function()
 
                 processinfo_update_output_stream(processinfo, IDDMzernike);
             }
+            */
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
