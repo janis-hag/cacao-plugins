@@ -384,7 +384,8 @@ int update_exposuretime(float etime)
     char *set_exp = (char *)malloc(64*sizeof(char));
     sprintf(set_exp, "tmux send-keys -t nuvu_ctrl \"SetExposureTime(%f)\" Enter", *exposuretime);
 
-
+    int status = system(set_exp);
+    (void) status;
     // TODO check if status is equal to the exposuretime.
 
     return RETURN_SUCCESS;
