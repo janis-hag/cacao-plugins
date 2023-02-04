@@ -354,8 +354,10 @@ static errno_t compute_function()
 
             // Prevent values to be out of range
             for(; ii<160; ii++){
-                if (dm_array[ii]>1)
-                    dm_array[ii]=1;
+                if (dm_array[ii] > 1)
+                    dm_array[ii] = 1;
+                if (dm_array[ii] < 0)
+                    dm_array[ii] = 0;
                     }
 
             error = BMCSetArray(&dm, dm_array, map_lut);
