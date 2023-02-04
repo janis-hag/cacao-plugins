@@ -352,6 +352,12 @@ static errno_t compute_function()
             dm_array[155] = data.image[IDTTMin].array.F[0]/5.0+0.5;
             dm_array[156] = data.image[IDTTMin].array.F[1]/5.0+0.5;
 
+            // Prevent values to be out of range
+            for(; ii<160; ii++){
+                if (dm_array[ii]>1)
+                    dm_array[ii]=1;
+                    }
+
             error = BMCSetArray(&dm, dm_array, map_lut);
             if (error) {
                 printf("\nThe error %d happened while setting array for deformable mirror\n", error);
