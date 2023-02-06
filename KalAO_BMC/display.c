@@ -265,6 +265,8 @@ static errno_t compute_function()
 
     /********** Open BMC **********/
 
+    processinfo_WriteMessage(processinfo, "Code version: 06.02.2023");
+
     processinfo_WriteMessage(processinfo, "Opening DM");
     error = BMCOpen(&dm, "17BW023#065");
     if (error) {
