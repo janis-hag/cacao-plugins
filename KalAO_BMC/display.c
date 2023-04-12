@@ -1,6 +1,6 @@
 /* ================================================================== */
 /* ================================================================== */
-/*            DEPENDANCIES                                            */
+/*            DEPENDENCIES                                            */
 /* ================================================================== */
 /* ================================================================== */
 
@@ -84,7 +84,7 @@ static CLICMDARGDEF farg[] =
     {
         CLIARG_FLOAT32,
         ".ttm_tip_offset",
-        "Tip offset on TTM",
+        "Tip offset on TTM [mrad]",
         "0",
         CLIARG_VISIBLE_DEFAULT,
         (void **) &ttm_tip_offset,
@@ -93,7 +93,7 @@ static CLICMDARGDEF farg[] =
     {
         CLIARG_FLOAT32,
         ".ttm_tilt_offset",
-        "Tilt offset on TTM",
+        "Tilt offset on TTM [mrad]",
         "0",
         CLIARG_VISIBLE_DEFAULT,
         (void **) &ttm_tilt_offset,
@@ -265,7 +265,7 @@ static errno_t compute_function()
 
     /********** Open BMC **********/
 
-    processinfo_WriteMessage(processinfo, "Code version: 06.02.2023");
+    processinfo_WriteMessage(processinfo, "Code version: 12.04.2023");
 
     processinfo_WriteMessage(processinfo, "Opening DM");
     error = BMCOpen(&dm, "17BW023#065");
@@ -370,7 +370,7 @@ static errno_t compute_function()
 
             /***** Output offset in TTM stream *****/
 
-            long ttmOffset_cnt_sum = data.fpsptr->parray[fpi_ttm_tip_offset].cnt0
+/*            long ttmOffset_cnt_sum = data.fpsptr->parray[fpi_ttm_tip_offset].cnt0
                                   + data.fpsptr->parray[fpi_ttm_tilt_offset].cnt0;
 
             if(ttmOffset_cnt_old != ttmOffset_cnt_sum) {
@@ -382,7 +382,7 @@ static errno_t compute_function()
                 data.image[IDTTMoffset].array.F[1] = *ttm_tilt_offset;
 
                 processinfo_update_output_stream(processinfo, IDTTMoffset);
-            }
+            }*/
 
             /***** Output zernike in DM stream *****/
 
