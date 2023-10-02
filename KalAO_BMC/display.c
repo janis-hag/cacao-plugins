@@ -142,9 +142,6 @@ static errno_t compute_function()
 
     /********** Open streams **********/
 
-    // create output arrays
-    uint32_t *imsizearray = (uint32_t*) malloc(sizeof(uint32_t)*2);
-
     processinfo_WriteMessage(processinfo, "Connecting to stream");
     imageID IDDMin = image_ID(DMin_streamname);
     imageID IDTTMin = image_ID(TTMin_streamname);
@@ -154,25 +151,28 @@ static errno_t compute_function()
     processinfo_WriteMessage(processinfo, "Looping");
 
     int ii;
+    float full_stroke, half_stroke;
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
+            full_stroke = *max_stroke;
+            half_stroke = *max_stroke/2;
 
             for(ii=0; ii<10; ii++)
-                dm_array[ii] = (data.image[IDDMin].array.F[ii+1])/3.5+0.5;
+                dm_array[ii] = data.image[IDDMin].array.F[ii+1]/3.5 + half_stroke;
 
             for(; ii<130; ii++)
-                dm_array[ii] = (data.image[IDDMin].array.F[ii+2])/3.5+0.5;
+                dm_array[ii] = data.image[IDDMin].array.F[ii+2]/3.5 + half_stroke;
 
             for(; ii<140; ii++)
-                dm_array[ii] = (data.image[IDDMin].array.F[ii+3])/3.5+0.5;
+                dm_array[ii] = data.image[IDDMin].array.F[ii+3]/3.5 + half_stroke;
 
-            dm_array[155] = data.image[IDTTMin].array.F[0]/5.0+0.5;
-            dm_array[156] = data.image[IDTTMin].array.F[1]/5.0+0.5;
+            dm_array[155] = data.image[IDTTMin].array.F[0]/5.0 + 0.5;
+            dm_array[156] = data.image[IDTTMin].array.F[1]/5.0 + 0.5;
 
             // Prevent values to be out of range
             for(ii=0; ii<140; ii++){
-                if (dm_array[ii] > *max_stroke)
-                    dm_array[ii] = *max_stroke;
+                if (dm_array[ii] > full_stroke)
+                    dm_array[ii] = full_stroke;
 
                 if (dm_array[ii] < 0)
                     dm_array[ii] = 0;
