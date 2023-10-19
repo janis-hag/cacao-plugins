@@ -396,7 +396,7 @@ int update_exposuretime(float etime)
 
 int update_emgain(long egain)
 {
-    printf("EMgain time to be set: %ld\n", egain);
+    printf("EMgain to be set: %ld\n", egain);
 
     char *set_emgain = (char *)malloc(64*sizeof(char));
     sprintf(set_emgain, "tmux send-keys -t nuvu_ctrl \"SetEMCalibratedGain(%ld)\" Enter", egain);
@@ -518,7 +518,8 @@ static errno_t compute_function()
     int height_in = 70;
 
     FUNCTION_PARAMETER_STRUCT fps_shwfs;
-    function_parameter_struct_connect("shwfs_process", &fps_shwfs, FPSCONNECT_SIMPLE);
+    // TODO change the process name to be a parameter instead of hardcoding shwfs_process-1
+    function_parameter_struct_connect("shwfs_process-1", &fps_shwfs, FPSCONNECT_SIMPLE);
     float* fluxPtr = functionparameter_GetParamPtr_FLOAT32(&fps_shwfs, ".flux_subaperture");
     long* fluxCnt = &fps_shwfs.parray[functionparameter_GetParamIndex(&fps_shwfs, ".flux_subaperture")].cnt0;
 
