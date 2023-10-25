@@ -426,7 +426,7 @@ static errno_t compute_function()
     }
 
     *flux_subaperture_brightest = *flux_averagecoeff * new_flux_brightest + (1.0-*flux_averagecoeff) * *flux_subaperture_brightest;
-    *flux_subaperture_avg = new_flux_avg/NBspot;
+    *flux_subaperture_avg = *flux_averagecoeff * new_flux_avg/NBspot  + (1.0-*flux_averagecoeff) * *flux_subaperture_avg;
     *residual = sqrt(new_residual / NBspot);
     *slope_x = new_slope_x/NBspot;
     *slope_y = new_slope_y/NBspot;
