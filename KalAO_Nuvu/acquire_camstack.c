@@ -520,8 +520,8 @@ static errno_t compute_function()
     FUNCTION_PARAMETER_STRUCT fps_shwfs;
     // TODO change the process name to be a parameter instead of hardcoding shwfs_process-1
     function_parameter_struct_connect("shwfs_process-1", &fps_shwfs, FPSCONNECT_SIMPLE);
-    float* fluxPtr = functionparameter_GetParamPtr_FLOAT32(&fps_shwfs, ".flux_subaperture");
-    long* fluxCnt = &fps_shwfs.parray[functionparameter_GetParamIndex(&fps_shwfs, ".flux_subaperture")].cnt0;
+    float* fluxPtr = functionparameter_GetParamPtr_FLOAT32(&fps_shwfs, ".flux_subaperture_brightest");
+    long* fluxCnt = &fps_shwfs.parray[functionparameter_GetParamIndex(&fps_shwfs, ".flux_subaperture_brightest")].cnt0;
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
 
@@ -618,9 +618,22 @@ static errno_t compute_function()
 
     data.image[IDout].md[0].write = 1;
 
+    float bias = 0;
+
+    ii_0s[] = {0, width-4};
+    jj_0s[] = {0, width-4};
+
+    for(int k=0; k<2; k++)
+        for(int l=0; l<2; l++)
+            for(int ii=0; ii<4; ii++)
+                for(int jj=0; jj<4; jj++)
+                    bias += data.image[IDin].array.UI16[(jj_0s[l]+jj+4)*width_in+8*(width-(ii_0s[k]+ii))];
+
+    bias /= 2 * 2 * 4 * 4
+
     for(int ii=0; ii<width; ii++)
         for(int jj=0; jj<height; jj++)
-            data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[(jj+4)*width_in+8*(width-ii)] - data.image[biasID].array.F[jj*width+ii])  * data.image[flatID].array.F[jj*width+ii];
+            data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[(jj+4)*width_in+8*(width-ii)] - data.image[biasID].array.F[jj*width+ii] - bias) * data.image[flatID].array.F[jj*width+ii];
 
     processinfo_update_output_stream(processinfo, IDout);
 
