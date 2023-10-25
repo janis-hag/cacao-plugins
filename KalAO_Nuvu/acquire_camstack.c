@@ -620,8 +620,8 @@ static errno_t compute_function()
 
     float bias = 0;
 
-    ii_0s[] = {0, width-4};
-    jj_0s[] = {0, width-4};
+    int ii_0s[] = {0, width-4};
+    int jj_0s[] = {0, width-4};
 
     for(int k=0; k<2; k++)
         for(int l=0; l<2; l++)
@@ -629,7 +629,7 @@ static errno_t compute_function()
                 for(int jj=0; jj<4; jj++)
                     bias += data.image[IDin].array.UI16[(jj_0s[l]+jj+4)*width_in+8*(width-(ii_0s[k]+ii))];
 
-    bias /= 2 * 2 * 4 * 4
+    bias /= 2 * 2 * 4 * 4;
 
     for(int ii=0; ii<width; ii++)
         for(int jj=0; jj<height; jj++)

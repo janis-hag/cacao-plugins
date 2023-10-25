@@ -53,5 +53,7 @@ install(PROGRAMS ${SCRIPTFILES} DESTINATION bin)
 # =====================================================================
 include_directories ("/opt/Boston\ Micromachines/include/")
 target_link_libraries(${LIBNAME} PUBLIC /opt/Boston\ Micromachines/lib/libBMC.so)
+target_link_libraries(${LIBNAME} PUBLIC /opt/Boston\ Micromachines/lib/libBMC_USBAPI.so)
+
 
 target_link_libraries(${LIBNAME} PUBLIC milkZernikePolyn)
