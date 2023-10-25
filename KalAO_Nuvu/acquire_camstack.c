@@ -144,7 +144,7 @@ static CLICMDARGDEF farg[] =
         CLIARG_ONOFF,
         ".dynamic_bias",
         "Dynamic bias ON/OFF",
-        "1",
+        "0",
         CLIARG_VISIBLE_DEFAULT,
         (void **) &dynamic_bias,
         &fpi_dynamic_bias
@@ -438,11 +438,15 @@ void load_bias_and_flat(
     {
         for(uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
             data.image[biasID].array.F[i] = data.image[biastmpID].array.F[i];
+
+        data.fpsptr->parray[fpi_dynamic_bias].fpflag &= !FPFLAG_ONOFF
     }
     else
     {
         for(uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
             data.image[biasID].array.F[i] = 0;
+
+        data.fpsptr->parray[fpi_dynamic_bias].fpflag |= FPFLAG_ONOFF
     }
 
     processinfo_update_output_stream(processinfo, biasID);
