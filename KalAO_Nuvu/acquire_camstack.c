@@ -31,6 +31,8 @@ typedef struct
 #define FPFLAG_KALAO_AUTOGAIN    0x1000000000000000
 #define FPFLAG_KALAO_UPDATED     0x2000000000000000
 
+#define BIAS_SIZE 8
+
 static int64_t *temperature;
 static long fpi_temperature;
 
@@ -52,6 +54,9 @@ static long fpi_bias_fname;
 static char *flat_fname;
 static long fpi_flat_fname;
 
+static uint64_t *dynamic_bias;
+static long fpi_dynamic_bias;
+
 static uint64_t *autogain;
 static long fpi_autogain;
 
@@ -67,11 +72,8 @@ static long fpi_autogain_high;
 static int64_t *autogain_framewait;
 static long fpi_autogain_framewait;
 
-
-
 static long emgain_cnt0 = 0;
 static long exposuretime_cnt0 = 0;
-
 
 static CLICMDARGDEF farg[] =
 {
@@ -140,6 +142,15 @@ static CLICMDARGDEF farg[] =
     },
     {
         CLIARG_ONOFF,
+        ".dynamic_bias",
+        "Dynamic bias ON/OFF",
+        "1",
+        CLIARG_VISIBLE_DEFAULT,
+        (void **) &dynamic_bias,
+        &fpi_dynamic_bias
+    },
+    {
+        CLIARG_ONOFF,
         ".autogain_on",
         "Auto-gain ON/OFF",
         "0",
@@ -205,10 +216,6 @@ static errno_t help_function()
     return RETURN_SUCCESS;
 }
 
-
-
-
-
 static errno_t customCONFsetup()
 {
     if (data.fpsptr != NULL)
@@ -240,6 +247,8 @@ static errno_t customCONFsetup()
         data.fpsptr->parray[fpi_exposuretime].val.f32[1] = 0; // min
         data.fpsptr->parray[fpi_exposuretime].val.f32[2] = 1000; // max
 
+        data.fpsptr->parray[fpi_dynamic_bias].fpflag |= FPFLAG_WRITERUN;
+
         data.fpsptr->parray[fpi_autogain].fpflag |= FPFLAG_WRITERUN;
 
         data.fpsptr->parray[fpi_autogain_low].fpflag |= FPFLAG_MINLIMIT;
@@ -263,7 +272,6 @@ static errno_t customCONFsetup()
 
     return RETURN_SUCCESS;
 }
-
 
 static errno_t customCONFcheck() {
     if(data.fpsptr->parray[fpi_emgain].cnt0 != emgain_cnt0)
@@ -296,16 +304,6 @@ static errno_t customCONFcheck() {
 
     return RETURN_SUCCESS;
 }
-
-
-
-
-
-
-
-
-
-
 
 static int read_exposure_params(NUVU_AUTOGAIN_PARAMS *autogain_params)
 {
@@ -351,10 +349,6 @@ static int read_exposure_params(NUVU_AUTOGAIN_PARAMS *autogain_params)
     return NBautogain_params;
 }
 
-
-
-
-
 void update_exposure_parameters(
     NUVU_AUTOGAIN_PARAMS *autogain_params,
     int current_autogain_param,
@@ -372,10 +366,6 @@ void update_exposure_parameters(
     data.fpsptr->md->signal |= FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
 }
 
-
-
-
-
 int update_exposuretime(float etime)
 {
     // send tmux command
@@ -391,9 +381,6 @@ int update_exposuretime(float etime)
     return RETURN_SUCCESS;
 }
 
-
-
-
 int update_emgain(long egain)
 {
     printf("EMgain to be set: %ld\n", egain);
@@ -406,10 +393,6 @@ int update_emgain(long egain)
 
     return RETURN_SUCCESS;
 }
-
-
-
-
 
 void load_bias_and_flat(
     PROCESSINFO *processinfo,
@@ -504,9 +487,9 @@ void load_bias_and_flat(
     processinfo_update_output_stream(processinfo, flatID);
 }
 
-
-
-
+#define width_in 520
+#define height_in 70
+#define pixel_index(ii, jj) ((jj)+4)*width_in+8*(width-(ii))
 
 static errno_t compute_function()
 {
@@ -514,8 +497,6 @@ static errno_t compute_function()
 
     int width = 64;
     int height = 64;
-    int width_in = 520;
-    int height_in = 70;
 
     FUNCTION_PARAMETER_STRUCT fps_shwfs;
     // TODO change the process name to be a parameter instead of hardcoding shwfs_process-1
@@ -618,22 +599,28 @@ static errno_t compute_function()
 
     data.image[IDout].md[0].write = 1;
 
-    float bias = 0;
+    if(data.fpsptr->parray[fpi_dynamic_bias].fpflag & FPFLAG_ONOFF) {
+        float bias = 0;
 
-    int ii_0s[] = {0, width-4};
-    int jj_0s[] = {0, width-4};
+        int ii_0[] = {0, width-BIAS_SIZE};
+        int jj_0[] = {0, width-BIAS_SIZE};
 
-    for(int k=0; k<2; k++)
-        for(int l=0; l<2; l++)
-            for(int ii=0; ii<4; ii++)
-                for(int jj=0; jj<4; jj++)
-                    bias += data.image[IDin].array.UI16[(jj_0s[l]+jj+4)*width_in+8*(width-(ii_0s[k]+ii))];
+        for(int k=0; k<2; k++)
+            for(int l=0; l<2; l++)
+                for(int ii=0; ii<BIAS_SIZE; ii++)
+                    for(int jj=0; jj<BIAS_SIZE; jj++)
+                        bias += data.image[IDin].array.UI16[pixel_index(ii_0[k]+ii, jj_0[l]+jj)];
 
-    bias /= 2 * 2 * 4 * 4;
+        bias /= 2 * 2 * BIAS_SIZE * BIAS_SIZE;
 
-    for(int ii=0; ii<width; ii++)
-        for(int jj=0; jj<height; jj++)
-            data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[(jj+4)*width_in+8*(width-ii)] - data.image[biasID].array.F[jj*width+ii] - bias) * data.image[flatID].array.F[jj*width+ii];
+        for(int ii=0; ii<width; ii++)
+            for(int jj=0; jj<height; jj++)
+                data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[pixel_index(ii, jj)] - bias) * data.image[flatID].array.F[jj*width+ii];
+    } else {
+        for(int ii=0; ii<width; ii++)
+            for(int jj=0; jj<height; jj++)
+                data.image[IDout].array.F[jj*width+ii] = (data.image[IDin].array.UI16[pixel_index(ii, jj)] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
+    }
 
     processinfo_update_output_stream(processinfo, IDout);
 
@@ -698,9 +685,6 @@ static errno_t compute_function()
     return RETURN_SUCCESS;
 }
 
-
-
-
 INSERT_STD_FPSCLIfunctions
 
 // Register function in CLI
@@ -712,4 +696,3 @@ errno_t CLIADDCMD_KalAO_Nuvu__acquire()
 
     return RETURN_SUCCESS;
 }
-
