@@ -344,9 +344,7 @@ static errno_t compute_function()
 
             flux = f00 + f01 + f10 + f11;
             dx = (f01 + f11) - (f00 + f10);
-            dx /= flux;
             dy = (f10 + f11) - (f00 + f01);
-            dy /= flux;
         }
 
         /***** Center of mass *****/
@@ -404,9 +402,14 @@ static errno_t compute_function()
                  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 1]
                  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 2]
                  + data.image[IDin].array.F[(spotcoord[spot].Yraw + 3) * sizeinX + spotcoord[spot].Xraw + 3];
+        }
 
+        if(flux > 1) {
             dx /= flux;
             dy /= flux;
+        } else {
+            dx = 0;
+            dy = 0;
         }
 
         /***** Common part *****/
