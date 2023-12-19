@@ -10,10 +10,10 @@
 #define MODULE_SHORTNAME_DEFAULT "KalAO_Nuvu"
 
 // Module short description
-#define MODULE_DESCRIPTION       "Module to control the Wavefront Sensor Camera of KalAO"
+#define MODULE_DESCRIPTION "Module to control the Wavefront Sensor Camera of KalAO"
 
 // Application to which module belongs
-#define MODULE_APPLICATION       "cacao"
+#define MODULE_APPLICATION "cacao"
 
 /* ================================================================== */
 /* ================================================================== */
@@ -27,8 +27,7 @@
 // Forward declarations are required to connect CLI calls to functions
 // If functions are in separate .c files, include here the corresponding .h files
 //
-#include "acquire_camstack.h"
-//#include "acquire.h"
+#include "acquire.h"
 
 /* ================================================================== */
 /* ================================================================== */
@@ -48,10 +47,8 @@ INIT_MODULE_LIB(KalAO_Nuvu)
  * Any other initialization is performed\n
  *
  */
-static errno_t init_module_CLI()
-{
+static errno_t init_module_CLI() {
     CLIADDCMD_KalAO_Nuvu__acquire();
 
     return RETURN_SUCCESS;
 }
-

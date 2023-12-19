@@ -1,0 +1,14 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: Never
+BreakBeforeBraces: Attach
+ColumnLimit: 0
+
+StatementMacros:
+  - INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
+  - INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
+  - INSERT_STD_PROCINFO_COMPUTEFUNC_END
+  - INSERT_STD_FPSCLIfunctions
+  - INSERT_STD_CLIREGISTERFUNC

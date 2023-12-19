@@ -2,8 +2,7 @@ set(LIBNAME "cacaoKalAONuvu")
 
 # list source files (.c) other than modulename.c
 set(SOURCEFILES
-	acquire_camstack.c
-	#acquire.c
+	acquire.c
 )
 
 # list include files (.h) that should be installed on system
@@ -18,6 +17,8 @@ set(SCRIPTFILES
 set(LINKLIBS
 	CLIcore
 )
+
+set(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} -Wmisleading-indentation -Werror=misleading-indentation")
 
 
 # DEFAULT SETTINGS
@@ -50,8 +51,3 @@ target_link_libraries(${LIBNAME} PRIVATE ${LINKLIBS})
 install(TARGETS ${LIBNAME} DESTINATION lib)
 install(FILES ${SRCNAME}.h ${INCLUDEFILES} DESTINATION include/${SRCNAME})
 install(PROGRAMS ${SCRIPTFILES} DESTINATION bin)
-
-# NUVU SETTINGS
-# =====================================================================
-#include_directories ("/opt/NuvuCameras/include/")
-#target_link_libraries(${LIBNAME} PUBLIC /opt/NuvuCameras/lib/libnuvu.so)

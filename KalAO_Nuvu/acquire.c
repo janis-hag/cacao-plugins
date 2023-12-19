@@ -6,12 +6,15 @@
 
 #define _GNU_SOURCE
 #include "CommandLineInterface/CLIcore.h"
-#include "CommandLineInterface/fps_GetParamIndex.h"
-#include "COREMOD_iofits/loadfits.h"
+#include "CommandLineInterface/fps/fps_GetParamIndex.h"
+
 #include "COREMOD_iofits/file_exists.h"
 #include "COREMOD_iofits/is_fits_file.h"
+#include "COREMOD_iofits/loadfits.h"
 
-#include "nc_driver.h"
+#include <limits.h>
+#include <math.h>
+#include <stdlib.h>
 
 /* ================================================================== */
 /*           MACROS, DEFINES                                          */
@@ -20,680 +23,832 @@
 
 typedef struct
 {
-	int64_t emgain;
-	float exposuretime;
+    int64_t emgain;
+    float exposuretime;
+    float exposure;
 
 } NUVU_AUTOGAIN_PARAMS;
 
 #define MAXNB_AUTOGAIN_PARAMS 100
 
-#define FPFLAG_KALAO_AUTOGAIN    0x1000000000000000
-#define FPFLAG_KALAO_UPDATED     0x2000000000000000
+#define EPSILON 0.01
 
+#define FPFLAG_KALAO_AUTOGAIN 0x1000000000000000
+#define FPFLAG_KALAO_UPDATED 0x2000000000000000
 
-static CLICMDARGDEF farg[] =
-{
-};
+#define BIAS_SIZE 8
 
+static int64_t *temperature;
+static long fpi_temperature;
 
-static CLICMDDATA CLIcmddata =
-{
-    "acquire",
-    "Connect to camera and start acqusition",
-    CLICMD_FIELDS_DEFAULTS
-};
+static int64_t *readoutmode;
+static long fpi_readoutmode;
 
+static int64_t *binning;
+static long fpi_binning;
 
-/* ================================================================== */
-/* ================================================================== */
-/*  FUNCTIONS                                                         */
-/* ================================================================== */
-/* ================================================================== */
-
-static errno_t help_function()
-{
-    return RETURN_SUCCESS;
-}
-
+static int64_t *emgain;
 static long fpi_emgain = 0;
-static long fpi_exposuretime = 0;
-static long fpi_autogain = 0;
+
+static float *exposuretime;
+static long fpi_exposuretime;
+
+static char *bias_fname;
+static long fpi_bias_fname;
+
+static char *flat_fname;
+static long fpi_flat_fname;
+
+static uint64_t *dynamic_bias;
+static long fpi_dynamic_bias;
+
+static int64_t *dynamic_bias_algorithm;
+static long fpi_dynamic_bias_algorithm;
+
+static uint64_t *autogain;
+static long fpi_autogain;
+
+static int64_t *autogain_setting;
+static long fpi_autogain_setting;
+
+static char *autogain_params_fname;
+static long fpi_autogain_params_fname;
+
+static char *autogain_flux_param;
+static long fpi_autogain_flux_param;
+
+static int64_t *autogain_lowgain_low;
+static long fpi_autogain_lowgain_low;
+
+static int64_t *autogain_lowgain_high;
+static long fpi_autogain_lowgain_high;
+
+static int64_t *autogain_highgain_low;
+static long fpi_autogain_highgain_low;
+
+static int64_t *autogain_highgain_high;
+static long fpi_autogain_highgain_high;
+
+static int64_t *autogain_wait;
+static long fpi_autogain_wait;
 
 static long emgain_cnt0 = 0;
 static long exposuretime_cnt0 = 0;
+static long autogain_setting_cnt0 = 0;
 
-static errno_t customCONFsetup()
-{
-	FPS_CONNECT(data.FPS_name, FPSCONNECT_CONF);
+static CLICMDARGDEF farg[] =
+    {
+        {
+            CLIARG_INT64,
+            ".temperature",
+            "Temperature (unused)",
+            "-60",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&temperature,
+            &fpi_temperature,
+        },
+        {
+            CLIARG_INT64,
+            ".readoutmode",
+            "Readout mode (unused)",
+            "1",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&readoutmode,
+            &fpi_readoutmode,
+        },
+        {
+            CLIARG_INT64,
+            ".binning",
+            "Binning (unused)",
+            "2",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&binning,
+            &fpi_binning,
+        },
+        {
+            CLIARG_INT64,
+            ".emgain",
+            "EM Gain",
+            "1",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&emgain,
+            &fpi_emgain,
+        },
+        {
+            CLIARG_FLOAT32,
+            ".exposuretime",
+            "Exposure Time [ms]",
+            "0",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&exposuretime,
+            &fpi_exposuretime,
+        },
+        {
+            CLIARG_FITSFILENAME,
+            ".bias",
+            "Bias files",
+            "bias/bias_%02ldC_%02ldrom_%01ldb_%04ldg.fits",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&bias_fname,
+            &fpi_bias_fname,
+        },
+        {
+            CLIARG_FITSFILENAME,
+            ".flat",
+            "Flat files",
+            "flat/flat_%02ldC_%02ldrom_%01ldb_%04ldg.fits",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&flat_fname,
+            &fpi_flat_fname,
+        },
+        {
+            CLIARG_ONOFF,
+            ".dynamic_bias_on",
+            "Dynamic bias ON/OFF",
+            "0",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&dynamic_bias,
+            &fpi_dynamic_bias,
+        },
+        {
+            CLIARG_INT64,
+            ".dynamic_bias_algorithm",
+            "Dynamic bias algorithm (0 = Average, 1 = Bilinear)",
+            "1",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&dynamic_bias_algorithm,
+            &fpi_dynamic_bias_algorithm,
+        },
+        {
+            CLIARG_ONOFF,
+            ".autogain_on",
+            "Auto-gain ON/OFF",
+            "0",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain,
+            &fpi_autogain,
+        },
+        {
+            CLIARG_INT64,
+            ".autogain_setting",
+            "Current Auto-gain setting",
+            "0",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain_setting,
+            &fpi_autogain_setting,
+        },
+        {
+            CLIARG_FILENAME,
+            ".autogain.params",
+            "Exposure Parameters for Auto-gain",
+            "filename",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain_params_fname,
+            &fpi_autogain_params_fname,
+        },
+        {
+            CLIARG_STR,
+            ".autogain.flux_param",
+            "Flux param to use for autogain",
+            "",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain_flux_param,
+            &fpi_autogain_flux_param,
+        },
+        {
+            CLIARG_INT64,
+            ".autogain.lowgain_low",
+            "Auto-gain Lower Limit in low gain regime [ADU]",
+            "25000",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain_lowgain_low,
+            &fpi_autogain_lowgain_low,
+        },
+        {
+            CLIARG_INT64,
+            ".autogain.lowgain_high",
+            "Auto-gain Upper Limit in low gain regime [ADU]",
+            "60000",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain_lowgain_high,
+            &fpi_autogain_lowgain_high,
+        },
+        {
+            CLIARG_INT64,
+            ".autogain.highgain_low",
+            "Auto-gain Lower Limit in high gain regime [ADU]",
+            "1000",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain_highgain_low,
+            &fpi_autogain_highgain_low,
+        },
+        {
+            CLIARG_INT64,
+            ".autogain.high_high",
+            "Auto-gain Upper Limit in high gain regime [ADU]",
+            "3000",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain_highgain_high,
+            &fpi_autogain_highgain_high,
+        },
+        {
+            CLIARG_INT64,
+            ".autogain.wait",
+            "Time to wait after a change to exposure [ms]",
+            "750",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&autogain_wait,
+            &fpi_autogain_wait,
+        },
+};
 
-	uint64_t FPFLAG = FPFLAG_DEFAULT_INPUT | FPFLAG_MINLIMIT | FPFLAG_MAXLIMIT;  // required to enforce the min and max
-	void *pNull = NULL;
+static CLICMDDATA CLIcmddata =
+    {
+        "acquire",
+        "Connect to camera and start acqusition",
+        CLICMD_FIELDS_DEFAULTS,
+};
 
-    long temperatureDefault[4] = { -60, -90, 20, -60 };
-	long fpi_temperature = 0;
-	function_parameter_add_entry(&fps, ".temperature", "Temperature",
-                            FPTYPE_INT64, FPFLAG, &temperatureDefault, &fpi_temperature);
+/* ================================================================== */
+/* ================================================================== */
+/*  FUNCTIONS                                                                                                                                        	   */
+/* ================================================================== */
+/* ================================================================== */
 
-    long readoutmodeDefault[4] = { 1, 1, 12, 1 };
-    long fpi_readoutmode = 0;
-    function_parameter_add_entry(&fps, ".readoutmode", "Readout mode",
-                            FPTYPE_INT64, FPFLAG, &readoutmodeDefault, &fpi_readoutmode);
+static errno_t help_function() {
+    return RETURN_SUCCESS;
+}
 
-    long binningDefault[4] = { 2, 1, 16, 2 };
-    long fpi_binning = 0;
-    function_parameter_add_entry(&fps, ".binning", "Binning",
-                            FPTYPE_INT64, FPFLAG, &binningDefault, &fpi_binning);
+static errno_t customCONFsetup() {
+    if (data.fpsptr != NULL) {
+        data.fpsptr->parray[fpi_temperature].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_temperature].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_temperature].val.i64[1] = -90; // min
+        data.fpsptr->parray[fpi_temperature].val.i64[2] = 20;  // max
 
-	long emgainDefault[4] = { 1, 1, 1000, 1 };
-	function_parameter_add_entry(&fps, ".emgain", "EM Gain",
-                            FPTYPE_INT64, FPFLAG | FPFLAG_WRITERUN, &emgainDefault, &fpi_emgain);
+        data.fpsptr->parray[fpi_readoutmode].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_readoutmode].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_readoutmode].val.i64[1] = 1;  // min
+        data.fpsptr->parray[fpi_readoutmode].val.i64[2] = 12; // max
 
-	float exposuretimeDefault[4] = { 0, 0, 1e3, 0 };
-	function_parameter_add_entry(&fps, ".exposuretime", "Exposure Time",
-                            FPTYPE_FLOAT32, FPFLAG | FPFLAG_WRITERUN, &exposuretimeDefault, &fpi_exposuretime);
+        data.fpsptr->parray[fpi_binning].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_binning].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_binning].val.i64[1] = 1;  // min
+        data.fpsptr->parray[fpi_binning].val.i64[2] = 16; // max
 
-	long fpi_bias = 0;
-    function_parameter_add_entry(&fps, ".bias", "Bias files",
-                           FPTYPE_STRING, FPFLAG, "bias/bias_%02ldC_%02ldrom_%01ldb_%04ldg.fits", &fpi_bias);
+        data.fpsptr->parray[fpi_emgain].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_emgain].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_emgain].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_emgain].val.i64[1] = 1;    // min
+        data.fpsptr->parray[fpi_emgain].val.i64[2] = 1000; // max
 
-	long fpi_flat = 0;
-    function_parameter_add_entry(&fps, ".flat", "Flat files",
-                           FPTYPE_STRING, FPFLAG, "flat/flat_%02ldC_%02ldrom_%01ldb_%04ldg.fits", &fpi_flat);
+        data.fpsptr->parray[fpi_exposuretime].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_exposuretime].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_exposuretime].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_exposuretime].val.f32[1] = 0;    // min
+        data.fpsptr->parray[fpi_exposuretime].val.f32[2] = 1000; // max
 
-    function_parameter_add_entry(&fps, ".autogain_on", "Auto-gain ON/OFF",
-                            FPTYPE_ONOFF, FPFLAG | FPFLAG_WRITERUN, pNull, &fpi_autogain);
+        data.fpsptr->parray[fpi_dynamic_bias].fpflag |= FPFLAG_WRITERUN;
 
-    FPS_ADDPARAM_FILENAME_IN (fpi_autogain_paramsfname, ".autogain_params", "Exposure Parameters for Auto-gain", NULL);
+        data.fpsptr->parray[fpi_dynamic_bias_algorithm].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_dynamic_bias_algorithm].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_dynamic_bias_algorithm].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_dynamic_bias_algorithm].val.i64[1] = 0; // min
+        data.fpsptr->parray[fpi_dynamic_bias_algorithm].val.i64[2] = 1; // max
 
-    long autogainLowerLimit[4] = { 60000, 0, 65535, 60000 };
-    long fpi_autogainLowerLimit = 0;
-    function_parameter_add_entry(&fps, ".autogain_low", "Auto-gain Lower Limit (ADU)",
-                            FPTYPE_INT64, FPFLAG, &autogainLowerLimit, &fpi_autogainLowerLimit);
+        data.fpsptr->parray[fpi_autogain].fpflag |= FPFLAG_WRITERUN;
 
-    long autogainUpperLimit[4] = { 75000, 0, 4*65535, 75000 };
-	long fpi_autogainUpperLimit = 0;
-	function_parameter_add_entry(&fps, ".autogain_high", "Auto-gain Upper Limit (ADU)",
-                            FPTYPE_INT64, FPFLAG, &autogainUpperLimit, &fpi_autogainUpperLimit);
+        data.fpsptr->parray[fpi_autogain_setting].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_setting].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_setting].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_setting].val.i64[1] = 0;                     // min
+        data.fpsptr->parray[fpi_autogain_setting].val.i64[2] = MAXNB_AUTOGAIN_PARAMS; // max
 
-    long autogainFramewait[4] = { 500, 0, 5000, 500 };
-	long fpi_autogainFramewait = 0;
-	function_parameter_add_entry(&fps, ".autogain_framewait", "Number of frames to wait after a change to exposure",
-                            FPTYPE_INT64, FPFLAG, &autogainFramewait, &fpi_autogainFramewait);
+        data.fpsptr->parray[fpi_autogain_lowgain_low].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_lowgain_low].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_lowgain_low].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_lowgain_low].val.i64[1] = 0;     // min
+        data.fpsptr->parray[fpi_autogain_lowgain_low].val.i64[2] = 65535; // max
 
-	FPS_ADDPARAM_FLT64_OUT(fpi_temp_ccd, ".temp_ccd", "CCD Temperature");
-	FPS_ADDPARAM_FLT64_OUT(fpi_temp_controller, ".temp_controller", "Controller Temperature");
-	FPS_ADDPARAM_FLT64_OUT(fpi_temp_power_supply, ".temp_power_supply", "Power Supply Temperature");
-	FPS_ADDPARAM_FLT64_OUT(fpi_temp_fpga, ".temp_fpga", "FPGA Temperature");
-	FPS_ADDPARAM_FLT64_OUT(fpi_temp_heatsink, ".temp_heatsink", "Heatsink Temperature");
+        data.fpsptr->parray[fpi_autogain_lowgain_high].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_lowgain_high].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_lowgain_high].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_lowgain_high].val.i64[1] = 0;         // min
+        data.fpsptr->parray[fpi_autogain_lowgain_high].val.i64[2] = 4 * 65535; // max
 
-	emgain_cnt0 = fps.parray[fpi_emgain].cnt0;
-    exposuretime_cnt0 = fps.parray[fpi_exposuretime].cnt0;
+        data.fpsptr->parray[fpi_autogain_highgain_low].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_highgain_low].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_highgain_low].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_highgain_low].val.i64[1] = 0;     // min
+        data.fpsptr->parray[fpi_autogain_highgain_low].val.i64[2] = 65535; // max
+
+        data.fpsptr->parray[fpi_autogain_highgain_high].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_highgain_high].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_highgain_high].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_highgain_high].val.i64[1] = 0;         // min
+        data.fpsptr->parray[fpi_autogain_highgain_high].val.i64[2] = 4 * 65535; // max
+
+        data.fpsptr->parray[fpi_autogain_wait].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_wait].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_wait].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_wait].val.i64[1] = 0;    // min
+        data.fpsptr->parray[fpi_autogain_wait].val.i64[2] = 10e6; // max
+
+        emgain_cnt0 = data.fpsptr->parray[fpi_emgain].cnt0;
+        exposuretime_cnt0 = data.fpsptr->parray[fpi_exposuretime].cnt0;
+    }
 
     return RETURN_SUCCESS;
 }
 
 static errno_t customCONFcheck() {
-	FPS_CONNECT(data.FPS_name, FPSCONNECT_CONF);
+    printf("CONFcheck %ld %ld\n", data.fpsptr->parray[fpi_emgain].cnt0, data.fpsptr->parray[fpi_exposuretime].cnt0);
 
-	if(fps.parray[fpi_emgain].cnt0 != emgain_cnt0)
-	{
-		emgain_cnt0 = fps.parray[fpi_emgain].cnt0;
+    // If emgain was changed
+    if (data.fpsptr->parray[fpi_emgain].cnt0 != emgain_cnt0) {
+        emgain_cnt0 = data.fpsptr->parray[fpi_emgain].cnt0;
 
-		fps.parray[fpi_emgain].fpflag |= FPFLAG_KALAO_UPDATED;
+        // Mark emgain as updated
+        data.fpsptr->parray[fpi_emgain].userflag |= FPFLAG_KALAO_UPDATED;
 
-		if(fps.parray[fpi_emgain].fpflag & FPFLAG_KALAO_AUTOGAIN) {
-			fps.parray[fpi_emgain].fpflag &= ~FPFLAG_KALAO_AUTOGAIN;
-		} else {
-			fps.parray[fpi_autogain].fpflag &= ~FPFLAG_ONOFF;
-			fps.parray[fpi_autogain].cnt0++;
-		}
-	}
+        if (data.fpsptr->parray[fpi_emgain].userflag & FPFLAG_KALAO_AUTOGAIN) {
+            // If updated by autogain, remove flag
+            data.fpsptr->parray[fpi_emgain].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
+        } else {
+            // If not (updated by user), deactivate autogain
+            data.fpsptr->parray[fpi_autogain].fpflag &= ~FPFLAG_ONOFF;
+            data.fpsptr->parray[fpi_autogain].cnt0++;
+        }
+    }
 
-	if(fps.parray[fpi_exposuretime].cnt0 != exposuretime_cnt0)
-	{
-		exposuretime_cnt0 = fps.parray[fpi_exposuretime].cnt0;
+    // If exposuretime was changed
+    if (data.fpsptr->parray[fpi_exposuretime].cnt0 != exposuretime_cnt0) {
+        exposuretime_cnt0 = data.fpsptr->parray[fpi_exposuretime].cnt0;
 
-		fps.parray[fpi_exposuretime].fpflag |= FPFLAG_KALAO_UPDATED;
+        // Mark exposuretime as updated
+        data.fpsptr->parray[fpi_exposuretime].userflag |= FPFLAG_KALAO_UPDATED;
 
-		if(fps.parray[fpi_exposuretime].fpflag & FPFLAG_KALAO_AUTOGAIN) {
-			fps.parray[fpi_exposuretime].fpflag &= ~FPFLAG_KALAO_AUTOGAIN;
-		} else {
-			fps.parray[fpi_autogain].fpflag &= ~FPFLAG_ONOFF;
-			fps.parray[fpi_autogain].cnt0++;
-		}
-	}
+        if (data.fpsptr->parray[fpi_exposuretime].userflag & FPFLAG_KALAO_AUTOGAIN) {
+            // If updated by autogain, remove flag
+            data.fpsptr->parray[fpi_exposuretime].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
+        } else {
+            // If not (updated by user), deactivate autogain
+            data.fpsptr->parray[fpi_autogain].fpflag &= ~FPFLAG_ONOFF;
+            data.fpsptr->parray[fpi_autogain].cnt0++;
+        }
+    }
 
     return RETURN_SUCCESS;
 }
 
-static int read_exposure_params(NUVU_AUTOGAIN_PARAMS *autogain_params, char *fname)
-{
+static int read_exposure_params(NUVU_AUTOGAIN_PARAMS *autogain_params, int64_t *max_gain, float *min_exposuretime) {
     int NBautogain_params = 0;
 
     FILE *fp;
 
-    fp = fopen(fname, "r");
-    if(fp == NULL)
-    {
-        perror("Unable to open file!");
+    fp = fopen(autogain_params_fname, "r");
+    if (fp == NULL) {
+        perror("Unable to open file!"); // %s",  autogain_params_fname);
         exit(1);
     }
 
-	int64_t emgain;
+    int64_t emgain;
     float exposuretime;
 
     char keyw[16];
 
     int loopOK = 1;
-    while(loopOK == 1)
-    {
+    while (loopOK == 1) {
         int ret = fscanf(fp, "%s %ld %f", keyw, &emgain, &exposuretime);
-        if(ret == EOF)
-        {
+        if (ret == EOF) {
             loopOK = 0;
-        }
-        else
-        {
-            if((ret==3) && (strcmp(keyw, "EXP") == 0))
-            {
+        } else {
+            if ((ret == 3) && (strcmp(keyw, "EXP") == 0)) {
                 printf("Found EXP %5ld %5f\n", emgain, exposuretime);
                 autogain_params[NBautogain_params].emgain = emgain;
                 autogain_params[NBautogain_params].exposuretime = exposuretime;
+                autogain_params[NBautogain_params].exposure = emgain * exposuretime;
+
+                if (emgain > *max_gain) {
+                    *max_gain = emgain;
+                }
+
+                if (exposuretime < *min_exposuretime) {
+                    *min_exposuretime = exposuretime;
+                }
+
                 NBautogain_params++;
             }
         }
     }
-	printf("Loaded %d exposure parameters\n", NBautogain_params);
+    printf("Loaded %d exposure parameters\n", NBautogain_params);
 
     fclose(fp);
+
+    data.fpsptr->parray[fpi_autogain_setting].val.i64[2] = NBautogain_params - 1;
 
     return NBautogain_params;
 }
 
-void update_exposure_parameters(FUNCTION_PARAMETER_STRUCT *fps, NUVU_AUTOGAIN_PARAMS *autogain_params, int current_autogain_param, uint64_t *emgainFlag, uint64_t *exposuretimeFlag)
-{
-	*emgainFlag |= FPFLAG_KALAO_AUTOGAIN;
-	*exposuretimeFlag |= FPFLAG_KALAO_AUTOGAIN;
-	functionparameter_SetParamValue_INT64(fps, ".emgain", autogain_params[current_autogain_param].emgain);
-	functionparameter_SetParamValue_FLOAT32(fps, ".exposuretime", autogain_params[current_autogain_param].exposuretime);
+void increase_autogain(int NBautogain_params) {
+    if (*autogain_setting < NBautogain_params - 1) {
+        (*autogain_setting)++;
+        data.fpsptr->parray[fpi_autogain_setting].cnt0++;
 
-	// Update GUI
-	fps->md->signal |= FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
+        // Update GUI
+        data.fpsptr->md->signal |= FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
+    }
 }
 
-void load_bias_and_flat(PROCESSINFO *processinfo, FUNCTION_PARAMETER_STRUCT *fps, imageID biasID, imageID flatID, long temperature, long readoutmode, long binning, long emgain)
-{
-	char biasfile[255];
-	char flatfile[255];
+void decrease_autogain(int NBautogain_params) {
+    if (*autogain_setting > 0) {
+        (*autogain_setting)--;
+        data.fpsptr->parray[fpi_autogain_setting].cnt0++;
 
-	sprintf(biasfile, functionparameter_GetParamPtr_STRING(fps, ".bias"), temperature, readoutmode, binning, emgain);
-	sprintf(flatfile, functionparameter_GetParamPtr_STRING(fps, ".flat"), temperature, readoutmode, binning, emgain);
-
-	imageID biastmpID = -1;
-	imageID flattmpID = -1;
-
-	/********** Load bias **********/
-
-	if(!file_exists(biasfile)) {
-		printf("File %s not found\n", biasfile);
-	} else if(!is_fits_file(biasfile)) {
-		printf("File %s is not a valid FITS file\n", biasfile);
-	} else
-	{
-		load_fits(biasfile, "nuvu_bias_tmp", 1, &biastmpID);
-
-		if(data.image[biasID].md[0].datatype != data.image[biastmpID].md[0].datatype)
-		{
-			printf("Wrong data type for file %s\n", biasfile);
-			biastmpID = -1;
-		}
-		else if (data.image[biasID].md[0].nelement != data.image[biastmpID].md[0].nelement)
-		{
-			printf("Wrong size for file %s\n", biasfile);
-			biastmpID = -1;
-		}
-	}
-
-	data.image[biasID].md[0].write = 1;
-
-	// Note: DO NOT use memset() as it will be optimized away
-	if(biastmpID != -1)
-	{
-		for(uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
-			data.image[biasID].array.F[i] = data.image[biastmpID].array.F[i];
-	}
-	else
-	{
-		for(uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
-			data.image[biasID].array.F[i] = 0;
-	}
-
-	processinfo_update_output_stream(processinfo, biasID);
-
-	/********** Load flat **********/
-
-	if(!file_exists(flatfile)) {
-		printf("File %s not found\n", flatfile);
-	} else if(!is_fits_file(flatfile)) {
-		printf("File %s is not a valid FITS file\n", flatfile);
-	}
-	else
-	{
-		load_fits(flatfile, "nuvu_flat_tmp", 1, &flattmpID);
-
-		if(data.image[flatID].md[0].datatype != data.image[flattmpID].md[0].datatype)
-		{
-			printf("Wrong data type for file %s\n", flatfile);
-			flattmpID = -1;
-		}
-		else if (data.image[flatID].md[0].nelement != data.image[flattmpID].md[0].nelement)
-		{
-			printf("Wriong size for file %s\n", flatfile);
-			flattmpID = -1;
-		}
-	}
-
-	data.image[flatID].md[0].write = 1;
-
-	// Note: DO NOT use memset() as it will be optimized away
-	if(flattmpID != -1)
-	{
-		for(uint64_t i = 0; i < data.image[flatID].md[0].nelement; i++)
-			data.image[flatID].array.F[i] = data.image[flattmpID].array.F[i];
-	}
-	else
-	{
-		for(uint64_t i = 0; i < data.image[flatID].md[0].nelement; i++)
-			data.image[flatID].array.F[i] = 1;
-	}
-
-	processinfo_update_output_stream(processinfo, flatID);
+        // Update GUI
+        data.fpsptr->md->signal |= FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
+    }
 }
 
-static errno_t compute_function()
-{
-	FPS_CONNECT(data.FPS_name, FPSCONNECT_RUN);
-	INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
+void update_exposure_parameters(
+    NUVU_AUTOGAIN_PARAMS *autogain_params) {
+    // Signal that emgain and exposuretime will be updated by autogain
+    data.fpsptr->parray[fpi_emgain].userflag |= FPFLAG_KALAO_AUTOGAIN;
+    data.fpsptr->parray[fpi_exposuretime].userflag |= FPFLAG_KALAO_AUTOGAIN;
 
-    // ===================================
-    // ### GET FUNCTION PARAMETER VALUES
-    // ===================================
-    long temperature = functionparameter_GetParamValue_INT64(&fps, ".temperature");
-    long readoutmode = functionparameter_GetParamValue_INT64(&fps, ".readoutmode");
-    long binning = functionparameter_GetParamValue_INT64(&fps, ".binning");
-    long autogain_low = functionparameter_GetParamValue_INT64(&fps, ".autogain_low");
-    long autogain_high = functionparameter_GetParamValue_INT64(&fps, ".autogain_high");
-    long autogain_framewait = functionparameter_GetParamValue_INT64(&fps, ".autogain_framewait");
+    *emgain = autogain_params[*autogain_setting].emgain;
+    *exposuretime = autogain_params[*autogain_setting].exposuretime;
 
-    long* emgainPtr = functionparameter_GetParamPtr_INT64(&fps, ".emgain");
-    uint64_t* emgainFlag = functionparameter_GetParamPtr_fpflag(&fps, ".emgain");
+    data.fpsptr->parray[fpi_emgain].cnt0++;
+    data.fpsptr->parray[fpi_exposuretime].cnt0++;
 
-    float* exposuretimePtr = functionparameter_GetParamPtr_FLOAT32(&fps, ".exposuretime");
-    uint64_t* exposuretimeFlag = functionparameter_GetParamPtr_fpflag(&fps, ".exposuretime");
+    // Update GUI
+    data.fpsptr->md->signal |= FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
+}
 
-    uint64_t* autogainFlag = functionparameter_GetParamPtr_fpflag(&fps, ".autogain_on");
-    long* autogainCnt = &fps.parray[functionparameter_GetParamIndex(&fps, ".autogain_on")].cnt0;
+int update_exposuretime() {
+    printf("Exposure time to be set: %f\n", *exposuretime);
 
-    char autogain_params_fname[FUNCTION_PARAMETER_STRMAXLEN + 1];
-    strncpy(autogain_params_fname, functionparameter_GetParamPtr_STRING(&fps, ".autogain_params"), FUNCTION_PARAMETER_STRMAXLEN);
+    char set_exposuretime[255];
+    sprintf(set_exposuretime, "tmux send-keys -t nuvu_ctrl \"SetExposureTime(%f)\" Enter", *exposuretime);
 
-    double* temp_ccd_ptr = functionparameter_GetParamPtr_FLOAT64(&fps, ".temp_ccd");
-	double* temp_controller_ptr = functionparameter_GetParamPtr_FLOAT64(&fps, ".temp_controller");
-	double* temp_power_supply_ptr = functionparameter_GetParamPtr_FLOAT64(&fps, ".temp_power_supply");
-	double* temp_fpga_ptr = functionparameter_GetParamPtr_FLOAT64(&fps, ".temp_fpga");
-	double* temp_heatsink_ptr = functionparameter_GetParamPtr_FLOAT64(&fps, ".temp_heatsink");
+    int status = system(set_exposuretime);
+    (void)status;
+    // TODO check if status is equal to the exposuretime.
 
-    FUNCTION_PARAMETER_STRUCT fps_shwfs;
-    function_parameter_struct_connect("shwfs_process", &fps_shwfs, FPSCONNECT_SIMPLE);
-    float* fluxPtr = functionparameter_GetParamPtr_FLOAT32(&fps_shwfs, ".flux_subaperture");
-    long* fluxCnt = &fps_shwfs.parray[functionparameter_GetParamIndex(&fps_shwfs, ".flux_subaperture")].cnt0;
+    return RETURN_SUCCESS;
+}
 
-	/********** Variables **********/
+int update_emgain() {
+    printf("EMgain to be set: %ld\n", *emgain);
 
-	int	error = NC_SUCCESS;
-    NcCam cam = NULL;
-    //NATH_camread_test
-    //uint32_t* image = NULL;
-    NcImage *image = NULL;
-    int width = 0;
-    int height = 0;
+    char set_emgain[255];
+    sprintf(set_emgain, "tmux send-keys -t nuvu_ctrl \"SetEMCalibratedGain(%ld)\" Enter", *emgain);
 
-	/********** Open and configure camera **********/
+    int status = system(set_emgain);
+    (void)status;
 
-	processinfo_WriteMessage(processinfo, "Opening camera");
-	error = ncCamOpen(NC_AUTO_UNIT, NC_AUTO_CHANNEL, 4, &cam);
-	if (error) {
-		printf("\nThe error %d happened while opening camera\n", error);
-		return error;
-	}
+    return RETURN_SUCCESS;
+}
 
-	processinfo_WriteMessage(processinfo, "Setting readout mode");
-	error = ncCamSetReadoutMode(cam, readoutmode);
-	if (error) {
-		printf("\nThe error %d happened while setting readout mode\n", error);
-		return error;
-	}
+void load_bias_and_flat(
+    PROCESSINFO *processinfo,
+    imageID biasID,
+    imageID flatID) {
+    char biasfile[255];
+    char flatfile[255];
 
-	processinfo_WriteMessage(processinfo, "Setting detector temperature");
-	error = ncCamSetTargetDetectorTemp(cam, temperature);
-	if (error) {
-		printf("\nThe error %d happened while setting detector temperature\n", error);
-		return error;
-	}
+    sprintf(biasfile, bias_fname, *temperature, *readoutmode, *binning, *emgain);
+    sprintf(flatfile, flat_fname, *temperature, *readoutmode, *binning, *emgain);
 
-	processinfo_WriteMessage(processinfo, "Setting binning");
-	error = ncCamSetBinningMode(cam, binning, binning);
-	if (error) {
-		printf("\nThe error %d happened while setting binning\n", error);
-		return error;
-	}
+    imageID biastmpID = -1;
+    imageID flattmpID = -1;
 
-	processinfo_WriteMessage(processinfo, "Setting exposure time");
-	error = ncCamSetExposureTime(cam, *exposuretimePtr);
-	if (error) {
-		printf("\nThe error %d happened while setting exposure time\n", error);
-		return error;
-	}
+    /********** Load bias **********/
 
-	processinfo_WriteMessage(processinfo, "Setting waiting time");
-	error = ncCamSetWaitingTime(cam, 0);
-	if (error) {
-		printf("\nThe error %d happened while setting waiting time\n", error);
-		return error;
-	}
-
-	processinfo_WriteMessage(processinfo, "Setting timeout");
-	error = ncCamSetTimeout(cam, 1000);
-	if (error) {
-		printf("\nThe error %d happened while setting timeout\n", error);
-		return error;
-	}
-
-	processinfo_WriteMessage(processinfo, "Setting EM gain");
-    error = ncCamSetCalibratedEmGain(cam, *emgainPtr);
-	if (error) {
-        printf("\nThe error %d happened while setting EM gain\n", error);
-		return error;
-	}
-
-	//NATH_camread_test
-	//processinfo_WriteMessage(processinfo, "Allocating the image");
-	//error = ncCamAllocUInt32Image(cam, &image);
-	//if (error) {
-	//	printf("\nThe error %d happened while allocating the image\n", error);
-	//	return error;
-	//}
-
-	processinfo_WriteMessage(processinfo, "Getting image size");
-	error = ncCamGetSize(cam, &width, &height);
-	if (error) {
-		printf("\nThe error %d happened while getting image size\n", error);
-		return error;
-	}
-
-	/********** Reduce logging output ****/
-
-	/*const char*  cam_read_function_name = "ncCamReadUInt32";
-	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
-	error = ncCamSilenceFunctionLogging(cam, cam_read_function_name, 1);
-	if (error) {
-		printf("\nThe error %d happened while disabling ncCamReadUInt32 logging\n", error);
-		return error;
-	}
-
-	const char* temperature_function_name = "ncCamGetComponentTemp";
-	processinfo_WriteMessage(processinfo, "Disabling temp loggging");
-	error = ncCamSilenceFunctionLogging(cam, temperature_function_name, 1);
-	if (error) {
-		printf("\nThe error %d happened while disabling ncCamGetComponentTemp logging\n", error);
-		return error;
-	}*/
-
-	/********** Allocate streams **********/
-
-	processinfo_WriteMessage(processinfo, "Allocating streams");
-
-	uint32_t *imsize = (uint32_t *) malloc(sizeof(uint32_t)*2);
-
-	imsize[0] = width;
-	imsize[1] = height;
-
-	imageID IDout = image_ID("nuvu_stream");
-	imageID flatID = image_ID("nuvu_flat");
-	imageID biasID = image_ID("nuvu_bias");
-
-	create_image_ID("nuvu_stream", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &IDout);
-	create_image_ID("nuvu_flat", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &flatID);
-	create_image_ID("nuvu_bias", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &biasID);
-
-	free(imsize);
-
-	/********** Load bias and flat **********/
-
-	processinfo_WriteMessage(processinfo, "Loading flat and bias");
-	load_bias_and_flat(processinfo, &fps, biasID, flatID, temperature, readoutmode, binning, *emgainPtr);
-
-	/********** Load exposure parameters **********/
-
-	NUVU_AUTOGAIN_PARAMS *autogain_params = (NUVU_AUTOGAIN_PARAMS*) malloc(sizeof(NUVU_AUTOGAIN_PARAMS)*MAXNB_AUTOGAIN_PARAMS);
-
-	int NBautogain_params = read_exposure_params(autogain_params, autogain_params_fname);
-	int current_autogain_param = 0;
- 	long fluxCnt_old = *fluxCnt;
- 	long autogainCnt_old = *autogainCnt;
-
-	printf("INIT AUTOGAIN %ld\n", autogainCnt_old); //TODO
-
-	if(*autogainFlag & FPFLAG_ONOFF) {
-		update_exposure_parameters(&fps, autogain_params, current_autogain_param, emgainFlag, exposuretimeFlag);
+    if (!file_exists(biasfile)) {
+        printf("Bias file %s not found\n", biasfile);
+    } else if (!is_fits_file(biasfile)) {
+        printf("Bias file %s is not a valid FITS file\n", biasfile);
     } else {
-    	// Needed to avoid race condition when enabling auto-gain
-    	// Explanation: cacao set flag to on and THEN increment cnt0, and our code can run in-between this two actions
-    	autogainCnt_old--;
+        load_fits(biasfile, "nuvu_bias_tmp", 1, &biastmpID);
+
+        if (data.image[biasID].md[0].datatype != data.image[biastmpID].md[0].datatype) {
+            printf("Wrong data type for bias file %s\n", biasfile);
+            biastmpID = -1;
+        } else if (data.image[biasID].md[0].nelement != data.image[biastmpID].md[0].nelement) {
+            printf("Wrong size for bias file %s\n", biasfile);
+            biastmpID = -1;
+        }
     }
 
-	/********** Start camera **********/
+    data.image[biasID].md[0].write = 1;
 
-	processinfo_WriteMessage(processinfo, "Opening the shutter");
-    error = ncCamSetShutterMode(cam, OPEN);
-    if (error) {
-		printf("\nThe error %d happened while opening the shutter\n", error);
-		return error;
-	}
+    // Note: DO NOT use memset() as it will be optimized away
+    if (biastmpID != -1) {
+        for (uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
+            data.image[biasID].array.F[i] = data.image[biastmpID].array.F[i];
 
-	processinfo_WriteMessage(processinfo, "Starting the acquisition");
-	error = ncCamStart(cam, 0);
-	if (error) {
-		printf("\nThe error %d happened while starting the acquisition\n", error);
-		return error;
-	}
+        data.fpsptr->parray[fpi_dynamic_bias].fpflag &= ~FPFLAG_ONOFF;
+    } else {
+        for (uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
+            data.image[biasID].array.F[i] = 0;
 
+        data.fpsptr->parray[fpi_dynamic_bias].fpflag |= FPFLAG_ONOFF;
+    }
 
-	processinfo_WriteMessage(processinfo, "Looping");
+    processinfo_update_output_stream(processinfo, biasID);
 
-	int ii,jj;
+    /********** Load flat **********/
+
+    if (!file_exists(flatfile)) {
+        printf("Flat file %s not found\n", flatfile);
+    } else if (!is_fits_file(flatfile)) {
+        printf("Flat file %s is not a valid FITS file\n", flatfile);
+    } else {
+        load_fits(flatfile, "nuvu_flat_tmp", 1, &flattmpID);
+
+        if (data.image[flatID].md[0].datatype != data.image[flattmpID].md[0].datatype) {
+            printf("Wrong data type for flat file %s\n", flatfile);
+            flattmpID = -1;
+        } else if (data.image[flatID].md[0].nelement != data.image[flattmpID].md[0].nelement) {
+            printf("Wrong size for flat file %s\n", flatfile);
+            flattmpID = -1;
+        }
+    }
+
+    data.image[flatID].md[0].write = 1;
+
+    // Note: DO NOT use memset() as it will be optimized away
+    if (flattmpID != -1) {
+        for (uint64_t i = 0; i < data.image[flatID].md[0].nelement; i++)
+            data.image[flatID].array.F[i] = data.image[flattmpID].array.F[i];
+    } else {
+        for (uint64_t i = 0; i < data.image[flatID].md[0].nelement; i++)
+            data.image[flatID].array.F[i] = 1;
+    }
+
+    processinfo_update_output_stream(processinfo, flatID);
+}
+
+#define width_in 520
+#define height_in 70
+#define pixel_index(ii, jj) ((jj) + 4) * width_in + 8 * (width - (ii))
+
+static errno_t compute_function() {
+    DEBUG_TRACE_FSTART();
+
+    int width = 64;
+    int height = 64;
+
+    FUNCTION_PARAMETER_STRUCT fps_shwfs;
+
+    char shwfs_tmp[255];
+    char *shwfs_fps;
+    char *shwfs_flux_param;
+
+    strcpy(shwfs_tmp, autogain_flux_param);
+
+    shwfs_fps = strtok(shwfs_tmp, ".");
+    shwfs_flux_param = strtok(NULL, ".");
+
+    function_parameter_struct_connect(shwfs_fps, &fps_shwfs, FPSCONNECT_SIMPLE);
+
+    float *flux = functionparameter_GetParamPtr_FLOAT32(&fps_shwfs, shwfs_flux_param);
+    long *flux_cnt0_ptr = &fps_shwfs.parray[functionparameter_GetParamIndex(&fps_shwfs, shwfs_flux_param)].cnt0;
+
+    INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
+
+    /********** Allocate streams **********/
+    processinfo_WriteMessage(processinfo, "Allocating streams");
+
+    imageID IDin = processinfo->triggerstreamID;
+    imageID IDout = image_ID("nuvu_stream");
+    imageID flatID = image_ID("nuvu_flat");
+    imageID biasID = image_ID("nuvu_bias");
+    imageID dynamicBiasID = image_ID("nuvu_dynamic_bias");
+    {
+        uint32_t *imsize = (uint32_t *)malloc(sizeof(uint32_t) * 2);
+
+        imsize[0] = width;
+        imsize[1] = height;
+
+        create_image_ID("nuvu_stream", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &IDout);
+        create_image_ID("nuvu_flat", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &flatID);
+        create_image_ID("nuvu_bias", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &biasID);
+        create_image_ID("nuvu_dynamic_bias", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &dynamicBiasID);
+
+        free(imsize);
+    }
+    /********** Configure camera **********/
+
+    // error =
+    update_exposuretime();
+
+    // error =
+    update_emgain();
+
+    /********** Load bias and flat **********/
+
+    processinfo_WriteMessage(processinfo, "Loading flat and bias");
+    load_bias_and_flat(processinfo, biasID, flatID);
+
+    /********** Load exposure parameters **********/
+
+    NUVU_AUTOGAIN_PARAMS *autogain_params = (NUVU_AUTOGAIN_PARAMS *)malloc(sizeof(NUVU_AUTOGAIN_PARAMS) * MAXNB_AUTOGAIN_PARAMS);
+    int64_t max_gain = 0;
+    float min_exposuretime = 1e6;
+
+    int NBautogain_params = read_exposure_params(autogain_params, &max_gain, &min_exposuretime);
+    long flux_cnt0 = *flux_cnt0_ptr;
+    long autogain_cnt0 = data.fpsptr->parray[fpi_autogain].cnt0;
+
+    if (data.fpsptr->parray[fpi_autogain].fpflag & FPFLAG_ONOFF) {
+        // If autogain is on, apply setting
+        update_exposure_parameters(autogain_params);
+    } else {
+        // Needed to avoid race condition when enabling auto-gain
+        // Explanation: cacao set flag to on and THEN increment cnt0, and our code can run in-between this two actions
+        autogain_cnt0--;
+    }
+
+    autogain_setting_cnt0 = data.fpsptr->parray[fpi_autogain_setting].cnt0;
+
+    /********** Start camera **********/
+
+    int ii, jj;
+
+    processinfo_WriteMessage(processinfo, "Looping");
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
 
-			/***** Update exposure and emgain if needed *****/
+    if (data.fpsptr->parray[fpi_autogain_setting].cnt0 != autogain_setting_cnt0) {
+        autogain_setting_cnt0 = data.fpsptr->parray[fpi_autogain_setting].cnt0;
 
-            if(*exposuretimeFlag & FPFLAG_KALAO_UPDATED)
-            {
-                processinfo_WriteMessage(processinfo, "New exposure time");
+        update_exposure_parameters(autogain_params);
+    }
 
-	            error = ncCamSetExposureTime(cam, *exposuretimePtr);
-	            if (error) {
-	            	printf("\nThe error %d happened while setting exposure time\n", error);
-		            //return error;
-	            }
+    if (data.fpsptr->parray[fpi_exposuretime].userflag & FPFLAG_KALAO_UPDATED) {
+        processinfo_WriteMessage(processinfo, "New exposure time");
 
-	            *exposuretimeFlag &= ~FPFLAG_KALAO_UPDATED;
+        // error =
+        update_exposuretime();
 
-                processinfo_WriteMessage(processinfo, "Looping");
+        data.fpsptr->parray[fpi_exposuretime].userflag &= ~FPFLAG_KALAO_UPDATED;
+
+        processinfo_WriteMessage(processinfo, "Looping");
+    }
+
+    if (data.fpsptr->parray[fpi_emgain].userflag & FPFLAG_KALAO_UPDATED) {
+        processinfo_WriteMessage(processinfo, "New EM gain");
+
+        // error =
+        update_emgain();
+
+        load_bias_and_flat(processinfo, biasID, flatID);
+
+        data.fpsptr->parray[fpi_emgain].userflag &= ~FPFLAG_KALAO_UPDATED;
+
+        processinfo_WriteMessage(processinfo, "Looping");
+    }
+
+    /***** Write output stream *****/
+
+    data.image[IDout].md[0].write = 1;
+    data.image[dynamicBiasID].md[0].write = 1;
+
+    if (data.fpsptr->parray[fpi_dynamic_bias].fpflag & FPFLAG_ONOFF) {
+        float bias[4] = {0, 0, 0, 0};
+
+        int ii_0[] = {0, width - BIAS_SIZE};
+        int jj_0[] = {0, height - BIAS_SIZE};
+
+        for (int k = 0; k < 2; k++) {
+            for (int l = 0; l < 2; l++) {
+                for (ii = 0; ii < BIAS_SIZE; ii++)
+                    for (jj = 0; jj < BIAS_SIZE; jj++)
+                        bias[l * 2 + k] += data.image[IDin].array.UI16[pixel_index(ii_0[k] + ii, jj_0[l] + jj)];
+
+                bias[l * 2 + k] /= BIAS_SIZE * BIAS_SIZE;
             }
+        }
 
-            if(*emgainFlag & FPFLAG_KALAO_UPDATED)
-            {
-                processinfo_WriteMessage(processinfo, "New EM gain");
+        if (*dynamic_bias_algorithm == 0) {
+            // Subtract mean
+            float bias_mean = (bias[0] + bias[1] + bias[2] + bias[3]) / 4;
 
-                error = ncCamSetCalibratedEmGain(cam, *emgainPtr);
-	            if (error) {
-                    printf("\nThe error %d happened while setting EM gain\n", error);
-		            //return error;
-	            }
-
-                load_bias_and_flat(processinfo, &fps, biasID, flatID, temperature, readoutmode, binning, *emgainPtr);
-
-                *emgainFlag &= ~FPFLAG_KALAO_UPDATED;
-
-                processinfo_WriteMessage(processinfo, "Looping");
+            for (ii = 0; ii < width; ii++) {
+                for (jj = 0; jj < height; jj++) {
+                    data.image[IDout].array.F[jj * width + ii] = (data.image[IDin].array.UI16[pixel_index(ii, jj)] - bias_mean) * data.image[flatID].array.F[jj * width + ii];
+                    data.image[dynamicBiasID].array.F[jj * width + ii] = bias_mean;
+                }
             }
+        } else {
+            // Subtract bilinear fit
+            float x1 = (BIAS_SIZE - 1) / 2;
+            float y1 = (BIAS_SIZE - 1) / 2;
+            float x2 = (width - 1) - (BIAS_SIZE - 1) / 2;
+            float y2 = (height - 1) - (BIAS_SIZE - 1) / 2;
 
-            /***** Read image from camera *****/
+            float C = 1 / ((x2 - x1) * (y2 - y1));
 
-			//NATH_camread_test
-			//error = ncCamReadUInt32(cam, image);
-			error = ncCamRead(cam, &image);
-			if (error) {
-				printf("\nThe error %d happened while reading the image\n", error);
-				//return error;
-			}
+            float a00 = C * (x2 * y2 * bias[0] - x2 * y1 * bias[1] - x1 * y2 * bias[2] + x1 * y1 * bias[3]);
+            float a10 = C * (-y2 * bias[0] + y1 * bias[1] + y2 * bias[2] - y1 * bias[3]);
+            float a01 = C * (-x2 * bias[0] + x2 * bias[1] + x1 * bias[2] - x1 * bias[3]);
+            float a11 = C * (bias[0] - bias[1] - bias[2] + bias[3]);
 
-			/***** Write output stream *****/
+            float bias_bilinear;
+            for (ii = 0; ii < width; ii++) {
+                for (jj = 0; jj < height; jj++) {
+                    bias_bilinear = a00 + a10 * jj + a01 * ii + a11 * jj * ii;
+                    data.image[IDout].array.F[jj * width + ii] = (data.image[IDin].array.UI16[pixel_index(ii, jj)] - bias_bilinear) * data.image[flatID].array.F[jj * width + ii];
+                    data.image[dynamicBiasID].array.F[jj * width + ii] = bias_bilinear;
+                }
+            }
+        }
 
-			data.image[IDout].md[0].write = 1;
+    } else {
+        for (ii = 0; ii < width; ii++) {
+            for (jj = 0; jj < height; jj++) {
+                data.image[IDout].array.F[jj * width + ii] = (data.image[IDin].array.UI16[pixel_index(ii, jj)] - data.image[biasID].array.F[jj * width + ii]) * data.image[flatID].array.F[jj * width + ii];
+                data.image[dynamicBiasID].array.F[jj * width + ii] = 0;
+            }
+        }
+    }
 
-			for(ii=0; ii<width; ii++)
-				for(jj=0; jj<height; jj++)
-					//NATH_camread_test
-					//data.image[IDout].array.F[jj*width+ii] = ((image[jj*width+ii] >> 16) - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
-					//seem to compile, but need a cast? example with a uint16_t cast:
-					// data.image[IDout].array.F[jj*width+ii] = (((uint16_t*) image)[jj*width+ii] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
-					data.image[IDout].array.F[jj*width+ii] = (image[jj*width+ii] - data.image[biasID].array.F[jj*width+ii]) * data.image[flatID].array.F[jj*width+ii];
+    processinfo_update_output_stream(processinfo, IDout);
+    processinfo_update_output_stream(processinfo, dynamicBiasID);
 
-			processinfo_update_output_stream(processinfo, IDout);
+    /***** Autogain *****/
 
-			/***** Read temperatures *****/
+    if (data.fpsptr->parray[fpi_autogain].fpflag & FPFLAG_ONOFF) {
+        uint64_t autogain_wait_frame = *autogain_wait;
+        if (*exposuretime < 0.5) {
+            autogain_wait_frame /= 0.5;
+        } else {
+            autogain_wait_frame /= *exposuretime;
+        }
 
-			error = ncCamGetComponentTemp(cam, NC_TEMP_CCD, temp_ccd_ptr);
-			if (error) {
-				printf("\nThe error %d happened while reading the ccd temperature\n", error);
-				//return error;
-			}
+        if (data.fpsptr->parray[fpi_autogain].cnt0 != autogain_cnt0) {
+            // Autogain was enabled
+            autogain_cnt0 = data.fpsptr->parray[fpi_autogain].cnt0;
+            update_exposure_parameters(autogain_params);
+            flux_cnt0 = *flux_cnt0_ptr;
+        } else if (data.fpsptr->parray[fpi_exposuretime].userflag & (FPFLAG_KALAO_UPDATED | FPFLAG_KALAO_AUTOGAIN) || data.fpsptr->parray[fpi_emgain].userflag & (FPFLAG_KALAO_UPDATED | FPFLAG_KALAO_AUTOGAIN)) {
+            // Wait because exposure parameters will be changed
+            flux_cnt0 = *flux_cnt0_ptr;
+        } else if ((flux_cnt0<LONG_MAX - autogain_wait_frame && * flux_cnt0_ptr> flux_cnt0 + autogain_wait_frame) || (flux_cnt0 > LONG_MAX - autogain_wait_frame && *flux_cnt0_ptr > LONG_MIN - (LONG_MAX - flux_cnt0) + autogain_wait_frame)) {
+            // Enough frames passed, accounting for wrap-around
+            if (*emgain == max_gain && fabs(*exposuretime - min_exposuretime) < EPSILON) {
+                // We are in the intermediate gain regime
+                if (*flux > *autogain_lowgain_high) {
+                    decrease_autogain(NBautogain_params);
+                    flux_cnt0 = *flux_cnt0_ptr;
+                } else if (*flux < *autogain_highgain_low) {
+                    increase_autogain(NBautogain_params);
+                    flux_cnt0 = *flux_cnt0_ptr;
+                }
+            } else if (*emgain < max_gain) {
+                // We are in the low gain regime
+                if (*flux > *autogain_lowgain_high) {
+                    decrease_autogain(NBautogain_params);
+                    flux_cnt0 = *flux_cnt0_ptr;
+                } else if (*flux < *autogain_lowgain_low) {
+                    increase_autogain(NBautogain_params);
+                    flux_cnt0 = *flux_cnt0_ptr;
+                }
+            } else {
+                // We are in the high gain regime
+                if (*flux > *autogain_highgain_high) {
+                    decrease_autogain(NBautogain_params);
+                    flux_cnt0 = *flux_cnt0_ptr;
+                } else if (*flux < *autogain_highgain_low) {
+                    increase_autogain(NBautogain_params);
+                    flux_cnt0 = *flux_cnt0_ptr;
+                }
+            }
+        }
+    }
 
-			error = ncCamGetComponentTemp(cam, NC_TEMP_CONTROLLER, temp_controller_ptr);
-			if (error) {
-				printf("\nThe error %d happened while reading the controller temperature\n", error);
-				//return error;
-			}
+    INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
-			error = ncCamGetComponentTemp(cam, NC_TEMP_POWER_SUPPLY, temp_power_supply_ptr);
-			if (error) {
-				printf("\nThe error %d happened while reading the power supply temperature\n", error);
-				//return error;
-			}
+    function_parameter_struct_disconnect(&fps_shwfs);
 
-			error = ncCamGetComponentTemp(cam, NC_TEMP_FPGA, temp_fpga_ptr);
-			if (error) {
-				printf("\nThe error %d happened while reading the fpga temperature\n", error);
-				//return error;
-			}
+    free(autogain_params);
 
-			error = ncCamGetComponentTemp(cam, NC_TEMP_HEATINK, temp_heatsink_ptr);
-			if (error) {
-				printf("\nThe error %d happened while reading the heatsink temperature\n", error);
-				//return error;
-			}
+    DEBUG_TRACE_FEXIT();
 
-			/***** Autogain *****/
-
-			if(*autogainFlag & FPFLAG_ONOFF && (*fluxPtr > autogain_high || *fluxPtr < autogain_low))
-			{
-				if(*autogainCnt != autogainCnt_old)
-				{
-					printf("RESET AUTOGAIN %ld\n", *autogainCnt); //TODO
-					current_autogain_param = 0;
-					update_exposure_parameters(&fps, autogain_params, current_autogain_param, emgainFlag, exposuretimeFlag);
-					fluxCnt_old = *fluxCnt;
-					autogainCnt_old = *autogainCnt;
-				}
-				else if(*exposuretimeFlag & (FPFLAG_KALAO_UPDATED|FPFLAG_KALAO_AUTOGAIN) || *emgainFlag & (FPFLAG_KALAO_UPDATED|FPFLAG_KALAO_AUTOGAIN))
-				{
-					// Wait because exposure parameters will be changed
-					fluxCnt_old = *fluxCnt;
-				}
-				else if(   (fluxCnt_old < LONG_MAX - autogain_framewait && *fluxCnt > fluxCnt_old + autogain_framewait)
-				        || (fluxCnt_old > LONG_MAX - autogain_framewait && *fluxCnt > LONG_MIN - (LONG_MAX - fluxCnt_old) + autogain_framewait))
-				{
-					if(*fluxPtr > autogain_high)
-					{
-						printf("REDUCE AUTOGAIN %ld\n", *autogainCnt); //TODO
-						if(current_autogain_param > 0) {
-							current_autogain_param--;
-						}
-
-						update_exposure_parameters(&fps, autogain_params, current_autogain_param, emgainFlag, exposuretimeFlag);
-						fluxCnt_old = *fluxCnt;
-            		}
-            		else if (*fluxPtr < autogain_low)
-            		{
-            			printf("AUGMENT AUTOGAIN %ld\n", *autogainCnt); //TODO
-						if(current_autogain_param < NBautogain_params-1) {
-							current_autogain_param++;
-						}
-
-						update_exposure_parameters(&fps, autogain_params, current_autogain_param, emgainFlag, exposuretimeFlag);
-						fluxCnt_old = *fluxCnt;
-            		}
-            	}
-        	}
-
-	INSERT_STD_PROCINFO_COMPUTEFUNC_END
-
-	processinfo_WriteMessage(processinfo, "Aborting the acquisition");
-	error = ncCamAbort(cam);
-	if (error) {
-		printf("\nThe error %d happened while aborting the acquisition\n", error);
-		return error;
-	}
-
-	//NATH_camread_test
-	//processinfo_WriteMessage(processinfo, "Freeing the image buffer");
-	//error = ncCamFreeUInt32Image(&image);
-	//if (error) {
-	//	printf("\nThe error %d happened while freeing the image buffer\n", error);
-	//	return error;
-	//}
-
-	processinfo_WriteMessage(processinfo, "Closing the shutter");
-    error = ncCamSetShutterMode(cam, CLOSE);
-    if (error) {
-		printf("\nThe error %d happened while closing the shutter\n", error);
-		return error;
-	}
-
-	processinfo_WriteMessage(processinfo, "Closing the camera");
-	error = ncCamClose(cam);
-	if (error) {
-		printf("\nThe error %d happened while closing the camera\n", error);
-		return error;
-	}
-	cam = NULL;
-
-	function_parameter_struct_disconnect(&fps_shwfs);
-
-	return RETURN_SUCCESS;
+    return RETURN_SUCCESS;
 }
 
 INSERT_STD_FPSCLIfunctions
 
 // Register function in CLI
-errno_t CLIADDCMD_KalAO_Nuvu__acquire()
-{
+errno_t
+CLIADDCMD_KalAO_Nuvu__acquire() {
     CLIcmddata.FPS_customCONFsetup = customCONFsetup;
     CLIcmddata.FPS_customCONFcheck = customCONFcheck;
     INSERT_STD_CLIREGISTERFUNC
 
     return RETURN_SUCCESS;
 }
-

@@ -27,43 +27,54 @@ static long fpi_TTMin_streamname;
 static float *max_stroke;
 static long fpi_max_stroke;
 
+static uint64_t *stroke_mode;
+static long fpi_stroke_mode;
+
 static CLICMDARGDEF farg[] =
-{
     {
-        CLIARG_IMG,
-        ".DMin",
-        "Actuators stream",
-        "",
-        CLIARG_VISIBLE_DEFAULT,
-        (void **) &DMin_streamname,
-        &fpi_DMin_streamname
-    },
-    {
-        CLIARG_IMG,
-        ".TTMin",
-        "Tip-Tilt stream",
-        "",
-        CLIARG_VISIBLE_DEFAULT,
-        (void **) &TTMin_streamname,
-        &fpi_TTMin_streamname
-    },
-    {
-        CLIARG_FLOAT32,
-        ".max_stroke",
-        "Maximum stroke of DM [-]",
-        "0.9",
-        CLIARG_VISIBLE_DEFAULT,
-        (void **) &max_stroke,
-        &fpi_max_stroke
-    },
+        {
+            CLIARG_IMG,
+            ".DMin",
+            "Actuators stream",
+            "",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&DMin_streamname,
+            &fpi_DMin_streamname,
+        },
+        {
+            CLIARG_IMG,
+            ".TTMin",
+            "Tip-Tilt stream",
+            "",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&TTMin_streamname,
+            &fpi_TTMin_streamname,
+        },
+        {
+            CLIARG_FLOAT32,
+            ".max_stroke",
+            "Maximum stroke of DM [-]",
+            "0.9",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&max_stroke,
+            &fpi_max_stroke,
+        },
+        {
+            CLIARG_INT64,
+            ".stroke_mode",
+            "Stroke mode (0 = Mid-stroke, 1 = Minimal stroke)",
+            "1",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&stroke_mode,
+            &fpi_stroke_mode,
+        },
 };
 
-
 static CLICMDDATA CLIcmddata =
-{
-    "display",
-    "Connect to deformable mirror and display",
-    CLICMD_FIELDS_DEFAULTS
+    {
+        "display",
+        "Connect to deformable mirror and display",
+        CLICMD_FIELDS_DEFAULTS,
 };
 
 /* ================================================================== */
@@ -72,27 +83,29 @@ static CLICMDDATA CLIcmddata =
 /* ================================================================== */
 /* ================================================================== */
 
-static errno_t help_function()
-{
+static errno_t help_function() {
     return RETURN_SUCCESS;
 }
 
-static errno_t customCONFsetup()
-{
-    if (data.fpsptr != NULL)
-    {
+static errno_t customCONFsetup() {
+    if (data.fpsptr != NULL) {
         data.fpsptr->parray[fpi_max_stroke].fpflag |= FPFLAG_MINLIMIT;
         data.fpsptr->parray[fpi_max_stroke].fpflag |= FPFLAG_MAXLIMIT;
         data.fpsptr->parray[fpi_max_stroke].fpflag |= FPFLAG_WRITERUN;
         data.fpsptr->parray[fpi_max_stroke].val.f32[1] = 0; // min
         data.fpsptr->parray[fpi_max_stroke].val.f32[2] = 1; // max
+
+        data.fpsptr->parray[fpi_stroke_mode].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_stroke_mode].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_stroke_mode].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_stroke_mode].val.i64[1] = 0; // min
+        data.fpsptr->parray[fpi_stroke_mode].val.i64[2] = 1; // max
     }
 
     return RETURN_SUCCESS;
 }
 
-static errno_t compute_function()
-{
+static errno_t compute_function() {
     DEBUG_TRACE_FSTART();
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
@@ -107,8 +120,6 @@ static errno_t compute_function()
 
     /********** Open BMC **********/
 
-    processinfo_WriteMessage(processinfo, "Code version: 12.04.2023");
-
     processinfo_WriteMessage(processinfo, "Opening DM");
     error = BMCOpen(&dm, "17DW019#50D");
     if (error) {
@@ -117,9 +128,9 @@ static errno_t compute_function()
     }
 
     processinfo_WriteMessage(processinfo, "Creating DM LUT Map");
-    map_lut = (uint32_t *)malloc(sizeof(uint32_t)*MAX_DM_SIZE);
+    map_lut = (uint32_t *)malloc(sizeof(uint32_t) * MAX_DM_SIZE);
 
-    for(k=0; k<(int)dm.ActCount; k++)
+    for (k = 0; k < (int)dm.ActCount; k++)
         map_lut[k] = 0;
 
     error = BMCLoadMap(&dm, NULL, map_lut);
@@ -129,9 +140,9 @@ static errno_t compute_function()
     }
 
     processinfo_WriteMessage(processinfo, "Creating DM array");
-    dm_array = malloc(sizeof(double)*(int)dm.ActCount);
+    dm_array = malloc(sizeof(double) * (int)dm.ActCount);
 
-    for(k=0; k<(int)dm.ActCount; k++)
+    for (k = 0; k < (int)dm.ActCount; k++)
         dm_array[k] = 0.5;
 
     error = BMCSetArray(&dm, dm_array, map_lut);
@@ -151,46 +162,59 @@ static errno_t compute_function()
     processinfo_WriteMessage(processinfo, "Looping");
 
     int ii;
-    float full_stroke, half_stroke;
+    float full_stroke, half_stroke, min_stroke;
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
-            full_stroke = *max_stroke;
-            half_stroke = *max_stroke/2;
 
-            for(ii=0; ii<10; ii++)
-                dm_array[ii] = data.image[IDDMin].array.F[ii+1]/3.5 + half_stroke;
+    full_stroke = *max_stroke;
+    half_stroke = *max_stroke / 2;
 
-            for(; ii<130; ii++)
-                dm_array[ii] = data.image[IDDMin].array.F[ii+2]/3.5 + half_stroke;
+    for (ii = 0; ii < 10; ii++)
+        dm_array[ii] = data.image[IDDMin].array.F[ii + 1] / 3.5 + half_stroke;
 
-            for(; ii<140; ii++)
-                dm_array[ii] = data.image[IDDMin].array.F[ii+3]/3.5 + half_stroke;
+    for (; ii < 130; ii++)
+        dm_array[ii] = data.image[IDDMin].array.F[ii + 2] / 3.5 + half_stroke;
 
-            dm_array[155] = data.image[IDTTMin].array.F[0]/5.0 + 0.5;
-            dm_array[156] = data.image[IDTTMin].array.F[1]/5.0 + 0.5;
+    for (; ii < 140; ii++)
+        dm_array[ii] = data.image[IDDMin].array.F[ii + 3] / 3.5 + half_stroke;
 
-            // Prevent values to be out of range
-            for(ii=0; ii<140; ii++){
-                if (dm_array[ii] > full_stroke)
-                    dm_array[ii] = full_stroke;
+    dm_array[155] = data.image[IDTTMin].array.F[0] / 5.0 + 0.5;
+    dm_array[156] = data.image[IDTTMin].array.F[1] / 5.0 + 0.5;
 
-                if (dm_array[ii] < 0)
-                    dm_array[ii] = 0;
-            }
+    // Prevent values to be out of range
+    for (ii = 0; ii < 140; ii++) {
+        if (dm_array[ii] > full_stroke)
+            dm_array[ii] = full_stroke;
 
-            for(; ii<160; ii++){
-                if (dm_array[ii] > 1)
-                    dm_array[ii] = 1;
+        if (dm_array[ii] < 0)
+            dm_array[ii] = 0;
+    }
 
-                if (dm_array[ii] < 0)
-                    dm_array[ii] = 0;
-            }
+    for (; ii < 160; ii++) {
+        if (dm_array[ii] > 1)
+            dm_array[ii] = 1;
 
-            error = BMCSetArray(&dm, dm_array, map_lut);
-            if (error) {
-                printf("\nThe error %d happened while setting array for deformable mirror\n", error);
-                return error;
-            }
+        if (dm_array[ii] < 0)
+            dm_array[ii] = 0;
+    }
+
+    if (*stroke_mode == 1) {
+        min_stroke = 3.5;
+
+        for (ii = 0; ii < 140; ii++) {
+            if (dm_array[ii] < min_stroke)
+                min_stroke = dm_array[ii];
+        }
+
+        for (ii = 0; ii < 140; ii++)
+            dm_array[ii] -= min_stroke;
+    }
+
+    error = BMCSetArray(&dm, dm_array, map_lut);
+    if (error) {
+        printf("\nThe error %d happened while setting array for deformable mirror\n", error);
+        return error;
+    }
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
@@ -218,11 +242,10 @@ static errno_t compute_function()
 INSERT_STD_FPSCLIfunctions
 
 // Register function in CLI
-errno_t CLIADDCMD_KalAO_BMC__display()
-{
+errno_t
+CLIADDCMD_KalAO_BMC__display() {
     CLIcmddata.FPS_customCONFsetup = customCONFsetup;
     INSERT_STD_CLIREGISTERFUNC
 
     return RETURN_SUCCESS;
 }
-

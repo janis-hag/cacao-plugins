@@ -18,6 +18,9 @@ set(LINKLIBS
 	CLIcore
 )
 
+set(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} -Wmisleading-indentation -Werror=misleading-indentation")
+
+
 # DEFAULT SETTINGS
 # Do not change unless needed
 # =====================================================================

@@ -10,10 +10,10 @@
 #define MODULE_SHORTNAME_DEFAULT "KalAO_SHWFS"
 
 // Module short description
-#define MODULE_DESCRIPTION       "Compute slopes for Shack-Hartmann WFS"
+#define MODULE_DESCRIPTION "Compute slopes for Shack-Hartmann WFS"
 
 // Application to which module belongs
-#define MODULE_APPLICATION       "cacao"
+#define MODULE_APPLICATION "cacao"
 
 /* ================================================================== */
 /* ================================================================== */
@@ -47,10 +47,8 @@ INIT_MODULE_LIB(KalAO_SHWFS)
  * Any other initialization is performed\n
  *
  */
-static errno_t init_module_CLI()
-{
+static errno_t init_module_CLI() {
     CLIADDCMD_KalAO_SHWFS__process();
 
     return RETURN_SUCCESS;
 }
-

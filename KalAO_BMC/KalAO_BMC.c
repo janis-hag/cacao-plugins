@@ -10,10 +10,10 @@
 #define MODULE_SHORTNAME_DEFAULT "KalAO_BMC"
 
 // Module short description
-#define MODULE_DESCRIPTION       "Module to control the Deformable Mirror of KalAO"
+#define MODULE_DESCRIPTION "Module to control the Deformable Mirror of KalAO"
 
 // Application to which module belongs
-#define MODULE_APPLICATION       "cacao"
+#define MODULE_APPLICATION "cacao"
 
 /* ================================================================== */
 /* ================================================================== */
@@ -47,10 +47,8 @@ INIT_MODULE_LIB(KalAO_BMC)
  * Any other initialization is performed\n
  *
  */
-static errno_t init_module_CLI()
-{
+static errno_t init_module_CLI() {
     CLIADDCMD_KalAO_BMC__display();
 
     return RETURN_SUCCESS;
 }
-
