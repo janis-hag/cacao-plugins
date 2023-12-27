@@ -30,13 +30,10 @@ typedef struct
 } NUVU_AUTOGAIN_PARAMS;
 
 #define MAXNB_AUTOGAIN_PARAMS 100
-
 #define EPSILON 0.01
-
 #define FPFLAG_KALAO_AUTOGAIN 0x1000000000000000
-#define FPFLAG_KALAO_UPDATED 0x2000000000000000
-
-#define BIAS_SIZE 8
+#define DYNAMIC_BIAS_SIZE 8
+#define MIN_EXPOSURETIME 0.5
 
 static int64_t *temperature;
 static long fpi_temperature;
@@ -91,10 +88,6 @@ static long fpi_autogain_highgain_high;
 
 static int64_t *autogain_wait;
 static long fpi_autogain_wait;
-
-static long emgain_cnt0 = 0;
-static long exposuretime_cnt0 = 0;
-static long autogain_setting_cnt0 = 0;
 
 static CLICMDARGDEF farg[] =
     {
@@ -353,49 +346,6 @@ static errno_t customCONFsetup() {
         data.fpsptr->parray[fpi_autogain_wait].fpflag |= FPFLAG_MAXLIMIT;
         data.fpsptr->parray[fpi_autogain_wait].val.i64[1] = 0;    // min
         data.fpsptr->parray[fpi_autogain_wait].val.i64[2] = 10e6; // max
-
-        emgain_cnt0 = data.fpsptr->parray[fpi_emgain].cnt0;
-        exposuretime_cnt0 = data.fpsptr->parray[fpi_exposuretime].cnt0;
-    }
-
-    return RETURN_SUCCESS;
-}
-
-static errno_t customCONFcheck() {
-    printf("CONFcheck %ld %ld\n", data.fpsptr->parray[fpi_emgain].cnt0, data.fpsptr->parray[fpi_exposuretime].cnt0);
-
-    // If emgain was changed
-    if (data.fpsptr->parray[fpi_emgain].cnt0 != emgain_cnt0) {
-        emgain_cnt0 = data.fpsptr->parray[fpi_emgain].cnt0;
-
-        // Mark emgain as updated
-        data.fpsptr->parray[fpi_emgain].userflag |= FPFLAG_KALAO_UPDATED;
-
-        if (data.fpsptr->parray[fpi_emgain].userflag & FPFLAG_KALAO_AUTOGAIN) {
-            // If updated by autogain, remove flag
-            data.fpsptr->parray[fpi_emgain].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
-        } else {
-            // If not (updated by user), deactivate autogain
-            data.fpsptr->parray[fpi_autogain].fpflag &= ~FPFLAG_ONOFF;
-            data.fpsptr->parray[fpi_autogain].cnt0++;
-        }
-    }
-
-    // If exposuretime was changed
-    if (data.fpsptr->parray[fpi_exposuretime].cnt0 != exposuretime_cnt0) {
-        exposuretime_cnt0 = data.fpsptr->parray[fpi_exposuretime].cnt0;
-
-        // Mark exposuretime as updated
-        data.fpsptr->parray[fpi_exposuretime].userflag |= FPFLAG_KALAO_UPDATED;
-
-        if (data.fpsptr->parray[fpi_exposuretime].userflag & FPFLAG_KALAO_AUTOGAIN) {
-            // If updated by autogain, remove flag
-            data.fpsptr->parray[fpi_exposuretime].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
-        } else {
-            // If not (updated by user), deactivate autogain
-            data.fpsptr->parray[fpi_autogain].fpflag &= ~FPFLAG_ONOFF;
-            data.fpsptr->parray[fpi_autogain].cnt0++;
-        }
     }
 
     return RETURN_SUCCESS;
@@ -454,9 +404,6 @@ void increase_autogain(int NBautogain_params) {
     if (*autogain_setting < NBautogain_params - 1) {
         (*autogain_setting)++;
         data.fpsptr->parray[fpi_autogain_setting].cnt0++;
-
-        // Update GUI
-        data.fpsptr->md->signal |= FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
     }
 }
 
@@ -464,9 +411,6 @@ void decrease_autogain(int NBautogain_params) {
     if (*autogain_setting > 0) {
         (*autogain_setting)--;
         data.fpsptr->parray[fpi_autogain_setting].cnt0++;
-
-        // Update GUI
-        data.fpsptr->md->signal |= FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
     }
 }
 
@@ -481,9 +425,6 @@ void update_exposure_parameters(
 
     data.fpsptr->parray[fpi_emgain].cnt0++;
     data.fpsptr->parray[fpi_exposuretime].cnt0++;
-
-    // Update GUI
-    data.fpsptr->md->signal |= FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
 }
 
 int update_exposuretime() {
@@ -550,11 +491,13 @@ void load_bias_and_flat(
             data.image[biasID].array.F[i] = data.image[biastmpID].array.F[i];
 
         data.fpsptr->parray[fpi_dynamic_bias].fpflag &= ~FPFLAG_ONOFF;
+        data.fpsptr->parray[fpi_dynamic_bias].cnt0++;
     } else {
         for (uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
             data.image[biasID].array.F[i] = 0;
 
         data.fpsptr->parray[fpi_dynamic_bias].fpflag |= FPFLAG_ONOFF;
+        data.fpsptr->parray[fpi_dynamic_bias].cnt0++;
     }
 
     processinfo_update_output_stream(processinfo, biasID);
@@ -644,9 +587,11 @@ static errno_t compute_function() {
 
     // error =
     update_exposuretime();
+    long exposuretime_cnt0 = data.fpsptr->parray[fpi_exposuretime].cnt0;
 
     // error =
     update_emgain();
+    long emgain_cnt0 = data.fpsptr->parray[fpi_emgain].cnt0;
 
     /********** Load bias and flat **********/
 
@@ -672,7 +617,7 @@ static errno_t compute_function() {
         autogain_cnt0--;
     }
 
-    autogain_setting_cnt0 = data.fpsptr->parray[fpi_autogain_setting].cnt0;
+    long autogain_setting_cnt0 = data.fpsptr->parray[fpi_autogain_setting].cnt0;
 
     /********** Start camera **********/
 
@@ -688,26 +633,44 @@ static errno_t compute_function() {
         update_exposure_parameters(autogain_params);
     }
 
-    if (data.fpsptr->parray[fpi_exposuretime].userflag & FPFLAG_KALAO_UPDATED) {
+    if (data.fpsptr->parray[fpi_exposuretime].cnt0 != exposuretime_cnt0) {
+        exposuretime_cnt0 = data.fpsptr->parray[fpi_exposuretime].cnt0;
+
+        if (data.fpsptr->parray[fpi_exposuretime].userflag & FPFLAG_KALAO_AUTOGAIN) {
+            // If updated by autogain, remove flag
+            data.fpsptr->parray[fpi_exposuretime].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
+        } else {
+            // If not (updated by user), deactivate autogain
+            data.fpsptr->parray[fpi_autogain].fpflag &= ~FPFLAG_ONOFF;
+            data.fpsptr->parray[fpi_autogain].cnt0++;
+        }
+
         processinfo_WriteMessage(processinfo, "New exposure time");
 
         // error =
         update_exposuretime();
 
-        data.fpsptr->parray[fpi_exposuretime].userflag &= ~FPFLAG_KALAO_UPDATED;
-
         processinfo_WriteMessage(processinfo, "Looping");
     }
 
-    if (data.fpsptr->parray[fpi_emgain].userflag & FPFLAG_KALAO_UPDATED) {
+    if (data.fpsptr->parray[fpi_emgain].cnt0 != emgain_cnt0) {
+        emgain_cnt0 = data.fpsptr->parray[fpi_emgain].cnt0;
+
+        if (data.fpsptr->parray[fpi_emgain].userflag & FPFLAG_KALAO_AUTOGAIN) {
+            // If updated by autogain, remove flag
+            data.fpsptr->parray[fpi_emgain].userflag &= ~FPFLAG_KALAO_AUTOGAIN;
+        } else {
+            // If not (updated by user), deactivate autogain
+            data.fpsptr->parray[fpi_autogain].fpflag &= ~FPFLAG_ONOFF;
+            data.fpsptr->parray[fpi_autogain].cnt0++;
+        }
+
         processinfo_WriteMessage(processinfo, "New EM gain");
 
         // error =
         update_emgain();
 
         load_bias_and_flat(processinfo, biasID, flatID);
-
-        data.fpsptr->parray[fpi_emgain].userflag &= ~FPFLAG_KALAO_UPDATED;
 
         processinfo_WriteMessage(processinfo, "Looping");
     }
@@ -720,16 +683,16 @@ static errno_t compute_function() {
     if (data.fpsptr->parray[fpi_dynamic_bias].fpflag & FPFLAG_ONOFF) {
         float bias[4] = {0, 0, 0, 0};
 
-        int ii_0[] = {0, width - BIAS_SIZE};
-        int jj_0[] = {0, height - BIAS_SIZE};
+        int ii_0[] = {0, width - DYNAMIC_BIAS_SIZE};
+        int jj_0[] = {0, height - DYNAMIC_BIAS_SIZE};
 
         for (int k = 0; k < 2; k++) {
             for (int l = 0; l < 2; l++) {
-                for (ii = 0; ii < BIAS_SIZE; ii++)
-                    for (jj = 0; jj < BIAS_SIZE; jj++)
+                for (ii = 0; ii < DYNAMIC_BIAS_SIZE; ii++)
+                    for (jj = 0; jj < DYNAMIC_BIAS_SIZE; jj++)
                         bias[l * 2 + k] += data.image[IDin].array.UI16[pixel_index(ii_0[k] + ii, jj_0[l] + jj)];
 
-                bias[l * 2 + k] /= BIAS_SIZE * BIAS_SIZE;
+                bias[l * 2 + k] /= DYNAMIC_BIAS_SIZE * DYNAMIC_BIAS_SIZE;
             }
         }
 
@@ -745,10 +708,10 @@ static errno_t compute_function() {
             }
         } else {
             // Subtract bilinear fit
-            float x1 = (BIAS_SIZE - 1) / 2;
-            float y1 = (BIAS_SIZE - 1) / 2;
-            float x2 = (width - 1) - (BIAS_SIZE - 1) / 2;
-            float y2 = (height - 1) - (BIAS_SIZE - 1) / 2;
+            float x1 = (DYNAMIC_BIAS_SIZE - 1) / 2;
+            float y1 = (DYNAMIC_BIAS_SIZE - 1) / 2;
+            float x2 = (width - 1) - (DYNAMIC_BIAS_SIZE - 1) / 2;
+            float y2 = (height - 1) - (DYNAMIC_BIAS_SIZE - 1) / 2;
 
             float C = 1 / ((x2 - x1) * (y2 - y1));
 
@@ -783,8 +746,8 @@ static errno_t compute_function() {
 
     if (data.fpsptr->parray[fpi_autogain].fpflag & FPFLAG_ONOFF) {
         uint64_t autogain_wait_frame = *autogain_wait;
-        if (*exposuretime < 0.5) {
-            autogain_wait_frame /= 0.5;
+        if (*exposuretime < MIN_EXPOSURETIME) {
+            autogain_wait_frame /= MIN_EXPOSURETIME;
         } else {
             autogain_wait_frame /= *exposuretime;
         }
@@ -793,9 +756,6 @@ static errno_t compute_function() {
             // Autogain was enabled
             autogain_cnt0 = data.fpsptr->parray[fpi_autogain].cnt0;
             update_exposure_parameters(autogain_params);
-            flux_cnt0 = *flux_cnt0_ptr;
-        } else if (data.fpsptr->parray[fpi_exposuretime].userflag & (FPFLAG_KALAO_UPDATED | FPFLAG_KALAO_AUTOGAIN) || data.fpsptr->parray[fpi_emgain].userflag & (FPFLAG_KALAO_UPDATED | FPFLAG_KALAO_AUTOGAIN)) {
-            // Wait because exposure parameters will be changed
             flux_cnt0 = *flux_cnt0_ptr;
         } else if ((flux_cnt0<LONG_MAX - autogain_wait_frame && * flux_cnt0_ptr> flux_cnt0 + autogain_wait_frame) || (flux_cnt0 > LONG_MAX - autogain_wait_frame && *flux_cnt0_ptr > LONG_MIN - (LONG_MAX - flux_cnt0) + autogain_wait_frame)) {
             // Enough frames passed, accounting for wrap-around
@@ -847,7 +807,6 @@ INSERT_STD_FPSCLIfunctions
 errno_t
 CLIADDCMD_KalAO_Nuvu__acquire() {
     CLIcmddata.FPS_customCONFsetup = customCONFsetup;
-    CLIcmddata.FPS_customCONFcheck = customCONFcheck;
     INSERT_STD_CLIREGISTERFUNC
 
     return RETURN_SUCCESS;
