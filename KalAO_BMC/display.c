@@ -62,7 +62,7 @@ static CLICMDARGDEF farg[] =
         {
             CLIARG_INT64,
             ".stroke_mode",
-            "Stroke mode (0 = Mid-stroke, 1 = Minimal stroke)",
+            "Stroke mode (0 = Mid-stroke, 1 = Minimize stroke)",
             "1",
             CLIARG_HIDDEN_DEFAULT,
             (void **)&stroke_mode,

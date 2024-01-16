@@ -1,6 +1,6 @@
 /* ================================================================== */
 /* ================================================================== */
-/*            DEPENDANCIES                                            */
+/*            DEPENDENCIES                                            */
 /* ================================================================== */
 /* ================================================================== */
 
@@ -16,6 +16,7 @@
 #include <math.h>
 #include <stdlib.h>
 
+/* ================================================================== */
 /* ================================================================== */
 /*           MACROS, DEFINES                                          */
 /* ================================================================== */
@@ -33,7 +34,7 @@ typedef struct
 #define EPSILON 0.01
 #define FPFLAG_KALAO_AUTOGAIN 0x1000000000000000
 #define DYNAMIC_BIAS_SIZE 8
-#define MIN_EXPOSURETIME 0.5
+#define READOUT_TIME 0.5538
 
 static int64_t *temperature;
 static long fpi_temperature;
@@ -431,11 +432,10 @@ int update_exposuretime() {
     printf("Exposure time to be set: %f\n", *exposuretime);
 
     char set_exposuretime[255];
-    sprintf(set_exposuretime, "tmux send-keys -t nuvu_ctrl \"SetExposureTime(%f)\" Enter", *exposuretime);
+    sprintf(set_exposuretime, "tmux send-keys -t kalaocam_ctrl \"SetExposureTime(%f)\" Enter", *exposuretime);
 
     int status = system(set_exposuretime);
     (void)status;
-    // TODO check if status is equal to the exposuretime.
 
     return RETURN_SUCCESS;
 }
@@ -444,7 +444,7 @@ int update_emgain() {
     printf("EMgain to be set: %ld\n", *emgain);
 
     char set_emgain[255];
-    sprintf(set_emgain, "tmux send-keys -t nuvu_ctrl \"SetEMCalibratedGain(%ld)\" Enter", *emgain);
+    sprintf(set_emgain, "tmux send-keys -t kalaocam_ctrl \"SetEMCalibratedGain(%ld)\" Enter", *emgain);
 
     int status = system(set_emgain);
     (void)status;
@@ -746,8 +746,8 @@ static errno_t compute_function() {
 
     if (data.fpsptr->parray[fpi_autogain].fpflag & FPFLAG_ONOFF) {
         uint64_t autogain_wait_frame = *autogain_wait;
-        if (*exposuretime < MIN_EXPOSURETIME) {
-            autogain_wait_frame /= MIN_EXPOSURETIME;
+        if (*exposuretime < READOUT_TIME) {
+            autogain_wait_frame /= READOUT_TIME;
         } else {
             autogain_wait_frame /= *exposuretime;
         }
