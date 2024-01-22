@@ -51,20 +51,20 @@ static long fpi_algorithm;
 static float *flux_averagecoeff;
 static long fpi_flux_averagecoeff;
 
-static float *flux_subaperture_brightest;
-static long fpi_flux_subaperture_brightest;
+static float *flux_max;
+static long fpi_flux_max;
 
-static float *flux_subaperture_avg;
-static long fpi_flux_subaperture_avg;
+static float *flux_avg;
+static long fpi_flux_avg;
 
-static float *residual;
-static long fpi_residual;
+static float *residual_rms;
+static long fpi_residual_rms;
 
-static float *slope_x;
-static long fpi_slope_x;
+static float *slope_x_avg;
+static long fpi_slope_x_avg;
 
-static float *slope_y;
-static long fpi_slope_y;
+static float *slope_y_avg;
+static long fpi_slope_y_avg;
 
 static CLICMDARGDEF farg[] =
     {
@@ -106,48 +106,48 @@ static CLICMDARGDEF farg[] =
         },
         {
             CLIARG_FLOAT32,
-            ".flux_subaperture_avg",
-            "Avg. flux in a subaperture",
+            ".flux_avg",
+            "Avg. flux in active subapertures",
             "0",
             CLIARG_OUTPUT_DEFAULT,
-            (void **)&flux_subaperture_avg,
-            &fpi_flux_subaperture_avg,
+            (void **)&flux_avg,
+            &fpi_flux_avg,
         },
         {
             CLIARG_FLOAT32,
-            ".flux_subaperture_brightest",
-            "Flux in brightest subaperture",
+            ".flux_max",
+            "Max. flux in active subapertures",
             "0",
             CLIARG_OUTPUT_DEFAULT,
-            (void **)&flux_subaperture_brightest,
-            &fpi_flux_subaperture_brightest,
+            (void **)&flux_max,
+            &fpi_flux_max,
         },
         {
             CLIARG_FLOAT32,
-            ".residual",
-            "RMS Residual",
+            ".residual_rms",
+            "RMS residual slopes",
             "0",
             CLIARG_OUTPUT_DEFAULT,
-            (void **)&residual,
-            &fpi_residual,
+            (void **)&residual_rms,
+            &fpi_residual_rms,
         },
         {
             CLIARG_FLOAT32,
-            ".slope_x",
-            "Average Tip",
+            ".slope_x_avg",
+            "Average slope in X direction",
             "0",
             CLIARG_OUTPUT_DEFAULT,
-            (void **)&slope_x,
-            &fpi_slope_x,
+            (void **)&slope_x_avg,
+            &fpi_slope_x_avg,
         },
         {
             CLIARG_FLOAT32,
-            ".slope_y",
-            "Average Tilt",
+            ".slope_y_avg",
+            "Average slope in Y direction",
             "0",
             CLIARG_OUTPUT_DEFAULT,
-            (void **)&slope_y,
-            &fpi_slope_y,
+            (void **)&slope_y_avg,
+            &fpi_slope_y_avg,
         },
 };
 
@@ -292,11 +292,11 @@ static errno_t compute_function() {
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
 
-    float new_flux_brightest = 0;
+    float new_flux_max = 0;
     float new_flux_avg = 0;
-    float new_residual = 0;
-    float new_slope_x = 0;
-    float new_slope_y = 0;
+    float new_residual_rms = 0;
+    float new_slope_x_avg = 0;
+    float new_slope_y_avg = 0;
 
     for (int spot = 0; spot < NBspot; spot++) {
         float dx = 0;
@@ -357,27 +357,27 @@ static errno_t compute_function() {
         spotcoord[spot].dy = dy;
         spotcoord[spot].flux = flux;
 
-        if (flux > new_flux_brightest) {
-            new_flux_brightest = flux;
+        if (flux > new_flux_max) {
+            new_flux_max = flux;
         }
 
         new_flux_avg += flux;
-        new_residual += dx * dx + dy * dy;
-        new_slope_x += dx;
-        new_slope_y += dy;
+        new_residual_rms += dx * dx + dy * dy;
+        new_slope_x_avg += dx;
+        new_slope_y_avg += dy;
     }
 
-    *flux_subaperture_brightest = *flux_averagecoeff * new_flux_brightest + (1.0 - *flux_averagecoeff) * *flux_subaperture_brightest;
-    *flux_subaperture_avg = *flux_averagecoeff * new_flux_avg / NBspot + (1.0 - *flux_averagecoeff) * *flux_subaperture_avg;
-    *residual = sqrt(new_residual / NBspot);
-    *slope_x = new_slope_x / NBspot;
-    *slope_y = new_slope_y / NBspot;
+    *flux_max = *flux_averagecoeff * new_flux_max + (1.0 - *flux_averagecoeff) * *flux_max;
+    *flux_avg = *flux_averagecoeff * new_flux_avg / NBspot + (1.0 - *flux_averagecoeff) * *flux_avg;
+    *residual_rms = sqrt(new_residual_rms / NBspot);
+    *slope_x_avg = new_slope_x_avg / NBspot;
+    *slope_y_avg = new_slope_y_avg / NBspot;
 
-    data.fpsptr->parray[fpi_flux_subaperture_brightest].cnt0++;
-    data.fpsptr->parray[fpi_flux_subaperture_avg].cnt0++;
-    data.fpsptr->parray[fpi_residual].cnt0++;
-    data.fpsptr->parray[fpi_slope_x].cnt0++;
-    data.fpsptr->parray[fpi_slope_y].cnt0++;
+    data.fpsptr->parray[fpi_flux_max].cnt0++;
+    data.fpsptr->parray[fpi_flux_avg].cnt0++;
+    data.fpsptr->parray[fpi_residual_rms].cnt0++;
+    data.fpsptr->parray[fpi_slope_x_avg].cnt0++;
+    data.fpsptr->parray[fpi_slope_y_avg].cnt0++;
 
     /***** Write slopes *****/
 
