@@ -121,6 +121,7 @@ static errno_t compute_function() {
     /********** Open BMC **********/
 
     processinfo_WriteMessage(processinfo, "Opening DM");
+
     error = BMCOpen(&dm, "17DW019#50D");
     if (error) {
         printf("\nThe error %d happened while opening deformable mirror\n", error);
@@ -128,6 +129,7 @@ static errno_t compute_function() {
     }
 
     processinfo_WriteMessage(processinfo, "Creating DM LUT Map");
+
     map_lut = (uint32_t *)malloc(sizeof(uint32_t) * MAX_DM_SIZE);
 
     for (k = 0; k < (int)dm.ActCount; k++)
@@ -140,10 +142,11 @@ static errno_t compute_function() {
     }
 
     processinfo_WriteMessage(processinfo, "Creating DM array");
+
     dm_array = malloc(sizeof(double) * (int)dm.ActCount);
 
     for (k = 0; k < (int)dm.ActCount; k++)
-        dm_array[k] = 0.5;
+        dm_array[k] = 0;
 
     error = BMCSetArray(&dm, dm_array, map_lut);
     if (error) {
@@ -154,8 +157,25 @@ static errno_t compute_function() {
     /********** Open streams **********/
 
     processinfo_WriteMessage(processinfo, "Connecting to stream");
+
     imageID IDDMin = image_ID(DMin_streamname);
     imageID IDTTMin = image_ID(TTMin_streamname);
+
+    /********** Allocate streams **********/
+
+    processinfo_WriteMessage(processinfo, "Allocating streams");
+
+    imageID IDout = image_ID("bmc_command");
+    {
+        uint32_t *imsize = (uint32_t *)malloc(sizeof(uint32_t) * 2);
+
+        imsize[0] = 12;
+        imsize[1] = 12;
+
+        create_image_ID("bmc_command", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &IDout);
+
+        free(imsize);
+    }
 
     /********** Loop **********/
 
@@ -198,6 +218,8 @@ static errno_t compute_function() {
             dm_array[ii] = 0;
     }
 
+    // Apply stroke mode
+
     if (*stroke_mode == 1) {
         min_stroke = 3.5;
 
@@ -210,11 +232,33 @@ static errno_t compute_function() {
             dm_array[ii] -= min_stroke;
     }
 
+    // Send command to DM
+
     error = BMCSetArray(&dm, dm_array, map_lut);
     if (error) {
         printf("\nThe error %d happened while setting array for deformable mirror\n", error);
         return error;
     }
+
+    // Write command sent to DM
+
+    data.image[IDout].md[0].write = 1;
+
+    data.image[IDout].array.F[0];
+    data.image[IDout].array.F[11];
+    data.image[IDout].array.F[132];
+    data.image[IDout].array.F[143];
+
+    for (ii = 0; ii < 10; ii++)
+        data.image[IDout].array.F[ii + 1] = dm_array[ii];
+
+    for (; ii < 130; ii++)
+        data.image[IDout].array.F[ii + 2] = dm_array[ii];
+
+    for (; ii < 140; ii++)
+        data.image[IDout].array.F[ii + 3] = dm_array[ii];
+
+    processinfo_update_output_stream(processinfo, IDout);
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 

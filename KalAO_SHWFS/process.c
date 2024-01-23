@@ -39,9 +39,6 @@ typedef struct
 
 #define MAXNB_SPOT 1000
 
-static char *slopes_streamname;
-static long fpi_slopes_streamname;
-
 static char *spotcoords_fname;
 static long fpi_spotcoords_fname;
 
@@ -69,15 +66,6 @@ static long fpi_slope_y_avg;
 static CLICMDARGDEF farg[] =
     {
         {
-            CLIARG_STREAM,
-            ".outWFS",
-            "Output stream",
-            "",
-            CLIARG_HIDDEN_DEFAULT,
-            (void **)&slopes_streamname,
-            &fpi_slopes_streamname,
-        },
-        {
             CLIARG_FILENAME,
             ".spotcoords",
             "SH spot coordinates",
@@ -89,7 +77,7 @@ static CLICMDARGDEF farg[] =
         {
             CLIARG_INT64,
             ".algorithm",
-            "Algorithm (0 = Quadcell, 1 = Center of mass)",
+            "Algorithm (0 = Quad-cell, 1 = Center of mass)",
             "1",
             CLIARG_HIDDEN_DEFAULT,
             (void **)&algorithm,
@@ -230,6 +218,8 @@ static errno_t compute_function() {
 
     /********** Load spots coordinates **********/
 
+    processinfo_WriteMessage(processinfo, "Loading spots coordinates");
+
     // Allocate spots
     SHWFS_SPOTS *spotcoord = (SHWFS_SPOTS *)malloc(sizeof(SHWFS_SPOTS) * MAXNB_SPOT);
 
@@ -238,9 +228,6 @@ static errno_t compute_function() {
     processinfo_WriteMessage(processinfo, msgstring);
 
     int NBspot = read_spots_coords(spotcoord);
-
-    char flux_streamname[FUNCTION_PARAMETER_STRMAXLEN + 6];
-    sprintf(flux_streamname, "%s_flux", slopes_streamname);
 
     // size of output 2D representation
     imageID IDin = processinfo->triggerstreamID;
@@ -265,23 +252,25 @@ static errno_t compute_function() {
 
     printf("Output 2D representation: %d x %d\n", sizeoutX, sizeoutY);
 
-    // create output arrays
-    uint32_t *imsizearray = (uint32_t *)malloc(sizeof(uint32_t) * 2);
+    /********** Allocate streams **********/
+
+    processinfo_WriteMessage(processinfo, "Allocating streams");
 
     // Identifiers for output streams
-    imageID IDslopes = image_ID(slopes_streamname);
-    imageID IDflux = image_ID(flux_streamname);
+    imageID IDslopes = image_ID("shwfs_slopes");
+    imageID IDflux = image_ID("shwfs_flux");
 
+    uint32_t *imsizearray = (uint32_t *)malloc(sizeof(uint32_t) * 2);
     {
         // slopes
         imsizearray[0] = sizeoutX * 2;
         imsizearray[1] = sizeoutY;
-        create_image_ID(slopes_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &IDslopes);
+        create_image_ID("shwfs_slopes", 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &IDslopes);
 
         // flux
         imsizearray[0] = sizeoutX;
         imsizearray[1] = sizeoutY;
-        create_image_ID(flux_streamname, 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &IDflux);
+        create_image_ID("shwfs_flux", 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &IDflux);
 
         free(imsizearray);
     }
@@ -303,7 +292,7 @@ static errno_t compute_function() {
         float dy = 0;
         float flux = 0;
 
-        /***** Quadcell *****/
+        /***** Quad-cell *****/
 
         if (*algorithm == 0) {
             float f00 = data.image[IDin].array.F[spotcoord[spot].Yraw * sizeinX + spotcoord[spot].Xraw] + data.image[IDin].array.F[spotcoord[spot].Yraw * sizeinX + spotcoord[spot].Xraw + 1] + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw] + data.image[IDin].array.F[(spotcoord[spot].Yraw + 1) * sizeinX + spotcoord[spot].Xraw + 1];

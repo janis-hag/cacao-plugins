@@ -563,6 +563,7 @@ static errno_t compute_function() {
     INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
 
     /********** Allocate streams **********/
+
     processinfo_WriteMessage(processinfo, "Allocating streams");
 
     imageID IDin = processinfo->triggerstreamID;
@@ -583,7 +584,10 @@ static errno_t compute_function() {
 
         free(imsize);
     }
+
     /********** Configure camera **********/
+
+    processinfo_WriteMessage(processinfo, "Configuring camera");
 
     // error =
     update_exposuretime();
@@ -596,9 +600,12 @@ static errno_t compute_function() {
     /********** Load bias and flat **********/
 
     processinfo_WriteMessage(processinfo, "Loading flat and bias");
+
     load_bias_and_flat(processinfo, biasID, flatID);
 
-    /********** Load exposure parameters **********/
+    /********** Load auto-gain parameters **********/
+
+    processinfo_WriteMessage(processinfo, "Loading auto-gain parameters");
 
     NUVU_AUTOGAIN_PARAMS *autogain_params = (NUVU_AUTOGAIN_PARAMS *)malloc(sizeof(NUVU_AUTOGAIN_PARAMS) * MAXNB_AUTOGAIN_PARAMS);
     int64_t max_gain = 0;
