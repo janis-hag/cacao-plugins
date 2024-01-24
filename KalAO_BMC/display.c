@@ -194,7 +194,7 @@ static errno_t compute_function() {
     processinfo_WriteMessage(processinfo, "Looping");
 
     int ii;
-    float full_stroke, half_stroke, min_stroke;
+    float full_stroke, half_stroke, min_stroke, offset;
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
 
@@ -244,7 +244,7 @@ static errno_t compute_function() {
 
         if (offset < 0) {
             for (ii = 0; ii < 140; ii++)
-                dm_array[ii] -= min_stroke;
+                dm_array[ii] -= offset;
         }
     }
 

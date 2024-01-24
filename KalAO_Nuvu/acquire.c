@@ -629,6 +629,7 @@ static errno_t compute_function() {
     /********** Start camera **********/
 
     int ii, jj;
+    uint64_t autogain_wait_frame;
 
     processinfo_WriteMessage(processinfo, "Looping");
 
@@ -752,7 +753,7 @@ static errno_t compute_function() {
     /***** Autogain *****/
 
     if (data.fpsptr->parray[fpi_autogain].fpflag & FPFLAG_ONOFF) {
-        uint64_t autogain_wait_frame = *autogain_wait;
+        autogain_wait_frame = *autogain_wait;
         if (*exposuretime < READOUT_TIME) {
             autogain_wait_frame /= READOUT_TIME;
         } else {
