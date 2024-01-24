@@ -75,17 +75,17 @@ static long fpi_autogain_params_fname;
 static char *autogain_flux_param;
 static long fpi_autogain_flux_param;
 
-static int64_t *autogain_lowgain_low;
-static long fpi_autogain_lowgain_low;
+static int64_t *autogain_lowgain_lower;
+static long fpi_autogain_lowgain_lower;
 
-static int64_t *autogain_lowgain_high;
-static long fpi_autogain_lowgain_high;
+static int64_t *autogain_lowgain_upper;
+static long fpi_autogain_lowgain_upper;
 
-static int64_t *autogain_highgain_low;
-static long fpi_autogain_highgain_low;
+static int64_t *autogain_highgain_lower;
+static long fpi_autogain_highgain_lower;
 
-static int64_t *autogain_highgain_high;
-static long fpi_autogain_highgain_high;
+static int64_t *autogain_highgain_upper;
+static long fpi_autogain_highgain_upper;
 
 static int64_t *autogain_wait;
 static long fpi_autogain_wait;
@@ -194,7 +194,7 @@ static CLICMDARGDEF farg[] =
         {
             CLIARG_FILENAME,
             ".autogain.params",
-            "Exposure Parameters for Auto-gain",
+            "Exposure parameters for Auto-gain",
             "filename",
             CLIARG_HIDDEN_DEFAULT,
             (void **)&autogain_params_fname,
@@ -211,43 +211,43 @@ static CLICMDARGDEF farg[] =
         },
         {
             CLIARG_INT64,
-            ".autogain.lowgain_low",
+            ".autogain.lowgain_lower",
             "Auto-gain Lower Limit in low gain regime [ADU]",
             "25000",
             CLIARG_HIDDEN_DEFAULT,
-            (void **)&autogain_lowgain_low,
-            &fpi_autogain_lowgain_low,
+            (void **)&autogain_lowgain_lower,
+            &fpi_autogain_lowgain_lower,
         },
         {
             CLIARG_INT64,
-            ".autogain.lowgain_high",
+            ".autogain.lowgain_upper",
             "Auto-gain Upper Limit in low gain regime [ADU]",
             "60000",
             CLIARG_HIDDEN_DEFAULT,
-            (void **)&autogain_lowgain_high,
-            &fpi_autogain_lowgain_high,
+            (void **)&autogain_lowgain_upper,
+            &fpi_autogain_lowgain_upper,
         },
         {
             CLIARG_INT64,
-            ".autogain.highgain_low",
+            ".autogain.highgain_lower",
             "Auto-gain Lower Limit in high gain regime [ADU]",
             "1000",
             CLIARG_HIDDEN_DEFAULT,
-            (void **)&autogain_highgain_low,
-            &fpi_autogain_highgain_low,
+            (void **)&autogain_highgain_lower,
+            &fpi_autogain_highgain_lower,
         },
         {
             CLIARG_INT64,
-            ".autogain.high_high",
+            ".autogain.highgain_upper",
             "Auto-gain Upper Limit in high gain regime [ADU]",
             "3000",
             CLIARG_HIDDEN_DEFAULT,
-            (void **)&autogain_highgain_high,
-            &fpi_autogain_highgain_high,
+            (void **)&autogain_highgain_upper,
+            &fpi_autogain_highgain_upper,
         },
         {
             CLIARG_INT64,
-            ".autogain.wait",
+            ".autogain.wait_time",
             "Time to wait after a change to exposure [ms]",
             "750",
             CLIARG_HIDDEN_DEFAULT,
@@ -318,29 +318,29 @@ static errno_t customCONFsetup() {
         data.fpsptr->parray[fpi_autogain_setting].val.i64[1] = 0;                     // min
         data.fpsptr->parray[fpi_autogain_setting].val.i64[2] = MAXNB_AUTOGAIN_PARAMS; // max
 
-        data.fpsptr->parray[fpi_autogain_lowgain_low].fpflag |= FPFLAG_WRITERUN;
-        data.fpsptr->parray[fpi_autogain_lowgain_low].fpflag |= FPFLAG_MINLIMIT;
-        data.fpsptr->parray[fpi_autogain_lowgain_low].fpflag |= FPFLAG_MAXLIMIT;
-        data.fpsptr->parray[fpi_autogain_lowgain_low].val.i64[1] = 0;     // min
-        data.fpsptr->parray[fpi_autogain_lowgain_low].val.i64[2] = 65535; // max
+        data.fpsptr->parray[fpi_autogain_lowgain_lower].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_lowgain_lower].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_lowgain_lower].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_lowgain_lower].val.i64[1] = 0;     // min
+        data.fpsptr->parray[fpi_autogain_lowgain_lower].val.i64[2] = 65535; // max
 
-        data.fpsptr->parray[fpi_autogain_lowgain_high].fpflag |= FPFLAG_WRITERUN;
-        data.fpsptr->parray[fpi_autogain_lowgain_high].fpflag |= FPFLAG_MINLIMIT;
-        data.fpsptr->parray[fpi_autogain_lowgain_high].fpflag |= FPFLAG_MAXLIMIT;
-        data.fpsptr->parray[fpi_autogain_lowgain_high].val.i64[1] = 0;         // min
-        data.fpsptr->parray[fpi_autogain_lowgain_high].val.i64[2] = 4 * 65535; // max
+        data.fpsptr->parray[fpi_autogain_lowgain_upper].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_lowgain_upper].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_lowgain_upper].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_lowgain_upper].val.i64[1] = 0;         // min
+        data.fpsptr->parray[fpi_autogain_lowgain_upper].val.i64[2] = 4 * 65535; // max
 
-        data.fpsptr->parray[fpi_autogain_highgain_low].fpflag |= FPFLAG_WRITERUN;
-        data.fpsptr->parray[fpi_autogain_highgain_low].fpflag |= FPFLAG_MINLIMIT;
-        data.fpsptr->parray[fpi_autogain_highgain_low].fpflag |= FPFLAG_MAXLIMIT;
-        data.fpsptr->parray[fpi_autogain_highgain_low].val.i64[1] = 0;     // min
-        data.fpsptr->parray[fpi_autogain_highgain_low].val.i64[2] = 65535; // max
+        data.fpsptr->parray[fpi_autogain_highgain_lower].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_highgain_lower].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_highgain_lower].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_highgain_lower].val.i64[1] = 0;     // min
+        data.fpsptr->parray[fpi_autogain_highgain_lower].val.i64[2] = 65535; // max
 
-        data.fpsptr->parray[fpi_autogain_highgain_high].fpflag |= FPFLAG_WRITERUN;
-        data.fpsptr->parray[fpi_autogain_highgain_high].fpflag |= FPFLAG_MINLIMIT;
-        data.fpsptr->parray[fpi_autogain_highgain_high].fpflag |= FPFLAG_MAXLIMIT;
-        data.fpsptr->parray[fpi_autogain_highgain_high].val.i64[1] = 0;         // min
-        data.fpsptr->parray[fpi_autogain_highgain_high].val.i64[2] = 4 * 65535; // max
+        data.fpsptr->parray[fpi_autogain_highgain_upper].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_autogain_highgain_upper].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_autogain_highgain_upper].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_autogain_highgain_upper].val.i64[1] = 0;         // min
+        data.fpsptr->parray[fpi_autogain_highgain_upper].val.i64[2] = 4 * 65535; // max
 
         data.fpsptr->parray[fpi_autogain_wait].fpflag |= FPFLAG_WRITERUN;
         data.fpsptr->parray[fpi_autogain_wait].fpflag |= FPFLAG_MINLIMIT;
@@ -768,28 +768,28 @@ static errno_t compute_function() {
             // Enough frames passed, accounting for wrap-around
             if (*emgain == max_gain && fabs(*exposuretime - min_exposuretime) < EPSILON) {
                 // We are in the intermediate gain regime
-                if (*flux > *autogain_lowgain_high) {
+                if (*flux > *autogain_lowgain_upper) {
                     decrease_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
-                } else if (*flux < *autogain_highgain_low) {
+                } else if (*flux < *autogain_highgain_lower) {
                     increase_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
                 }
             } else if (*emgain < max_gain) {
                 // We are in the low gain regime
-                if (*flux > *autogain_lowgain_high) {
+                if (*flux > *autogain_lowgain_upper) {
                     decrease_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
-                } else if (*flux < *autogain_lowgain_low) {
+                } else if (*flux < *autogain_lowgain_lower) {
                     increase_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
                 }
             } else {
                 // We are in the high gain regime
-                if (*flux > *autogain_highgain_high) {
+                if (*flux > *autogain_highgain_upper) {
                     decrease_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
-                } else if (*flux < *autogain_highgain_low) {
+                } else if (*flux < *autogain_highgain_lower) {
                     increase_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
                 }

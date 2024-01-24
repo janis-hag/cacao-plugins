@@ -30,6 +30,9 @@ static long fpi_max_stroke;
 static uint64_t *stroke_mode;
 static long fpi_stroke_mode;
 
+static float *target_stroke;
+static long fpi_target_stroke;
+
 static CLICMDARGDEF farg[] =
     {
         {
@@ -67,6 +70,15 @@ static CLICMDARGDEF farg[] =
             CLIARG_HIDDEN_DEFAULT,
             (void **)&stroke_mode,
             &fpi_stroke_mode,
+        },
+        {
+            CLIARG_FLOAT32,
+            ".target_stroke",
+            "Target stroke for minimize mode [-]",
+            "0.2",
+            CLIARG_HIDDEN_DEFAULT,
+            (void **)&target_stroke,
+            &fpi_target_stroke,
         },
 };
 
@@ -221,15 +233,19 @@ static errno_t compute_function() {
     // Apply stroke mode
 
     if (*stroke_mode == 1) {
-        min_stroke = 3.5;
+        min_stroke = 1;
 
         for (ii = 0; ii < 140; ii++) {
             if (dm_array[ii] < min_stroke)
                 min_stroke = dm_array[ii];
         }
 
-        for (ii = 0; ii < 140; ii++)
-            dm_array[ii] -= min_stroke;
+        offset = *target_stroke - min_stroke;
+
+        if (offset < 0) {
+            for (ii = 0; ii < 140; ii++)
+                dm_array[ii] -= min_stroke;
+        }
     }
 
     // Send command to DM
