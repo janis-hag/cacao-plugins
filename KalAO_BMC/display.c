@@ -116,8 +116,8 @@ static errno_t customCONFsetup() {
         data.fpsptr->parray[fpi_target_stroke].fpflag |= FPFLAG_WRITERUN;
         data.fpsptr->parray[fpi_target_stroke].fpflag |= FPFLAG_MINLIMIT;
         data.fpsptr->parray[fpi_target_stroke].fpflag |= FPFLAG_MAXLIMIT;
-        data.fpsptr->parray[fpi_target_stroke].val.i64[1] = 0; // min
-        data.fpsptr->parray[fpi_target_stroke].val.i64[2] = 1; // max
+        data.fpsptr->parray[fpi_target_stroke].val.f32[1] = 0; // min
+        data.fpsptr->parray[fpi_target_stroke].val.f32[2] = 1; // max
     }
 
     return RETURN_SUCCESS;
