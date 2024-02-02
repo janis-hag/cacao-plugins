@@ -112,6 +112,12 @@ static errno_t customCONFsetup() {
         data.fpsptr->parray[fpi_stroke_mode].fpflag |= FPFLAG_MAXLIMIT;
         data.fpsptr->parray[fpi_stroke_mode].val.i64[1] = 0; // min
         data.fpsptr->parray[fpi_stroke_mode].val.i64[2] = 1; // max
+
+        data.fpsptr->parray[fpi_target_stroke].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_target_stroke].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_target_stroke].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_target_stroke].val.i64[1] = 0; // min
+        data.fpsptr->parray[fpi_target_stroke].val.i64[2] = 1; // max
     }
 
     return RETURN_SUCCESS;
@@ -170,21 +176,26 @@ static errno_t compute_function() {
 
     processinfo_WriteMessage(processinfo, "Connecting to stream");
 
-    imageID IDDMin = image_ID(DMin_streamname);
-    imageID IDTTMin = image_ID(TTMin_streamname);
+    imageID DMinID = image_ID(DMin_streamname);
+    imageID TTMinID = image_ID(TTMin_streamname);
 
     /********** Allocate streams **********/
 
     processinfo_WriteMessage(processinfo, "Allocating streams");
 
-    imageID IDout = image_ID("bmc_command");
+    imageID DMoutID = image_ID("bmc_commands_dm");
+    imageID TTMoutID = image_ID("bmc_commands_ttm");
+
     {
         uint32_t *imsize = (uint32_t *)malloc(sizeof(uint32_t) * 2);
 
         imsize[0] = 12;
         imsize[1] = 12;
+        create_image_ID("bmc_commands_dm", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &DMoutID);
 
-        create_image_ID("bmc_command", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &IDout);
+        imsize[0] = 2;
+        imsize[1] = 1;
+        create_image_ID("bmc_commands_ttm", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &TTMoutID);
 
         free(imsize);
     }
@@ -202,16 +213,16 @@ static errno_t compute_function() {
     half_stroke = *max_stroke / 2;
 
     for (ii = 0; ii < 10; ii++)
-        dm_array[ii] = data.image[IDDMin].array.F[ii + 1] / 3.5 + half_stroke;
+        dm_array[ii] = data.image[DMinID].array.F[ii + 1] / 3.5 + half_stroke;
 
     for (; ii < 130; ii++)
-        dm_array[ii] = data.image[IDDMin].array.F[ii + 2] / 3.5 + half_stroke;
+        dm_array[ii] = data.image[DMinID].array.F[ii + 2] / 3.5 + half_stroke;
 
     for (; ii < 140; ii++)
-        dm_array[ii] = data.image[IDDMin].array.F[ii + 3] / 3.5 + half_stroke;
+        dm_array[ii] = data.image[DMinID].array.F[ii + 3] / 3.5 + half_stroke;
 
-    dm_array[155] = data.image[IDTTMin].array.F[0] / 5.0 + 0.5;
-    dm_array[156] = data.image[IDTTMin].array.F[1] / 5.0 + 0.5;
+    dm_array[155] = data.image[TTMinID].array.F[0] / 5.0 + 0.5;
+    dm_array[156] = data.image[TTMinID].array.F[1] / 5.0 + 0.5;
 
     // Prevent values to be out of range
     for (ii = 0; ii < 140; ii++) {
@@ -258,23 +269,32 @@ static errno_t compute_function() {
 
     // Write command sent to DM
 
-    data.image[IDout].md[0].write = 1;
+    data.image[DMoutID].md[0].write = 1;
 
-    data.image[IDout].array.F[0];
-    data.image[IDout].array.F[11];
-    data.image[IDout].array.F[132];
-    data.image[IDout].array.F[143];
+    data.image[DMoutID].array.F[0] = 0;
+    data.image[DMoutID].array.F[11] = 0;
+    data.image[DMoutID].array.F[132] = 0;
+    data.image[DMoutID].array.F[143] = 0;
 
     for (ii = 0; ii < 10; ii++)
-        data.image[IDout].array.F[ii + 1] = dm_array[ii];
+        data.image[DMoutID].array.F[ii + 1] = dm_array[ii];
 
     for (; ii < 130; ii++)
-        data.image[IDout].array.F[ii + 2] = dm_array[ii];
+        data.image[DMoutID].array.F[ii + 2] = dm_array[ii];
 
     for (; ii < 140; ii++)
-        data.image[IDout].array.F[ii + 3] = dm_array[ii];
+        data.image[DMoutID].array.F[ii + 3] = dm_array[ii];
 
-    processinfo_update_output_stream(processinfo, IDout);
+    processinfo_update_output_stream(processinfo, DMoutID);
+
+    // Write command sent to TTM
+
+    data.image[TTMoutID].md[0].write = 1;
+
+    data.image[TTMoutID].array.F[0] = dm_array[155];
+    data.image[TTMoutID].array.F[1] = dm_array[156];
+
+    processinfo_update_output_stream(processinfo, TTMoutID);
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 

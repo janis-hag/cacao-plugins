@@ -566,8 +566,8 @@ static errno_t compute_function() {
 
     processinfo_WriteMessage(processinfo, "Allocating streams");
 
-    imageID IDin = processinfo->triggerstreamID;
-    imageID IDout = image_ID("nuvu_stream");
+    imageID inID = processinfo->triggerstreamID;
+    imageID outID = image_ID("nuvu_stream");
     imageID flatID = image_ID("nuvu_flat");
     imageID biasID = image_ID("nuvu_bias");
     imageID dynamicBiasID = image_ID("nuvu_dynamic_bias");
@@ -577,7 +577,7 @@ static errno_t compute_function() {
         imsize[0] = width;
         imsize[1] = height;
 
-        create_image_ID("nuvu_stream", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &IDout);
+        create_image_ID("nuvu_stream", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &outID);
         create_image_ID("nuvu_flat", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &flatID);
         create_image_ID("nuvu_bias", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &biasID);
         create_image_ID("nuvu_dynamic_bias", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &dynamicBiasID);
@@ -685,7 +685,7 @@ static errno_t compute_function() {
 
     /***** Write output stream *****/
 
-    data.image[IDout].md[0].write = 1;
+    data.image[outID].md[0].write = 1;
     data.image[dynamicBiasID].md[0].write = 1;
 
     if (data.fpsptr->parray[fpi_dynamic_bias].fpflag & FPFLAG_ONOFF) {
@@ -698,7 +698,7 @@ static errno_t compute_function() {
             for (int l = 0; l < 2; l++) {
                 for (ii = 0; ii < DYNAMIC_BIAS_SIZE; ii++)
                     for (jj = 0; jj < DYNAMIC_BIAS_SIZE; jj++)
-                        bias[l * 2 + k] += data.image[IDin].array.UI16[pixel_index(ii_0[k] + ii, jj_0[l] + jj)];
+                        bias[l * 2 + k] += data.image[inID].array.UI16[pixel_index(ii_0[k] + ii, jj_0[l] + jj)];
 
                 bias[l * 2 + k] /= DYNAMIC_BIAS_SIZE * DYNAMIC_BIAS_SIZE;
             }
@@ -710,7 +710,7 @@ static errno_t compute_function() {
 
             for (ii = 0; ii < width; ii++) {
                 for (jj = 0; jj < height; jj++) {
-                    data.image[IDout].array.F[jj * width + ii] = (data.image[IDin].array.UI16[pixel_index(ii, jj)] - bias_mean) * data.image[flatID].array.F[jj * width + ii];
+                    data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[pixel_index(ii, jj)] - bias_mean) * data.image[flatID].array.F[jj * width + ii];
                     data.image[dynamicBiasID].array.F[jj * width + ii] = bias_mean;
                 }
             }
@@ -732,7 +732,7 @@ static errno_t compute_function() {
             for (ii = 0; ii < width; ii++) {
                 for (jj = 0; jj < height; jj++) {
                     bias_bilinear = a00 + a10 * jj + a01 * ii + a11 * jj * ii;
-                    data.image[IDout].array.F[jj * width + ii] = (data.image[IDin].array.UI16[pixel_index(ii, jj)] - bias_bilinear) * data.image[flatID].array.F[jj * width + ii];
+                    data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[pixel_index(ii, jj)] - bias_bilinear) * data.image[flatID].array.F[jj * width + ii];
                     data.image[dynamicBiasID].array.F[jj * width + ii] = bias_bilinear;
                 }
             }
@@ -741,13 +741,13 @@ static errno_t compute_function() {
     } else {
         for (ii = 0; ii < width; ii++) {
             for (jj = 0; jj < height; jj++) {
-                data.image[IDout].array.F[jj * width + ii] = (data.image[IDin].array.UI16[pixel_index(ii, jj)] - data.image[biasID].array.F[jj * width + ii]) * data.image[flatID].array.F[jj * width + ii];
+                data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[pixel_index(ii, jj)] - data.image[biasID].array.F[jj * width + ii]) * data.image[flatID].array.F[jj * width + ii];
                 data.image[dynamicBiasID].array.F[jj * width + ii] = 0;
             }
         }
     }
 
-    processinfo_update_output_stream(processinfo, IDout);
+    processinfo_update_output_stream(processinfo, outID);
     processinfo_update_output_stream(processinfo, dynamicBiasID);
 
     /***** Autogain *****/
