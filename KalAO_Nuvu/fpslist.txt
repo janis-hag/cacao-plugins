@@ -1,1 +1,0 @@
-nuvu_acquire	KalAO_Nuvu.acquire

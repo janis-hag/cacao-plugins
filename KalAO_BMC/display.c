@@ -174,7 +174,7 @@ static errno_t compute_function() {
 
     /********** Open streams **********/
 
-    processinfo_WriteMessage(processinfo, "Connecting to stream");
+    processinfo_WriteMessage(processinfo, "Connecting to streams");
 
     imageID DMinID = image_ID(DMin_streamname);
     imageID TTMinID = image_ID(TTMin_streamname);
