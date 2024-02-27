@@ -251,9 +251,9 @@ static errno_t compute_function() {
                 min_stroke = dm_array[ii];
         }
 
-        offset = *target_stroke - min_stroke;
+        offset = min_stroke - *target_stroke;
 
-        if (offset < 0) {
+        if (offset > 0) {
             for (ii = 0; ii < 140; ii++)
                 dm_array[ii] -= offset;
         }
