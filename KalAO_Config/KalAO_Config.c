@@ -10,7 +10,7 @@
 #define MODULE_SHORTNAME_DEFAULT "KalAO_Config"
 
 // Module short description
-#define MODULE_DESCRIPTION "Config for KalAO GUI"
+#define MODULE_DESCRIPTION "Config for KalAO-ICS"
 
 // Application to which module belongs
 #define MODULE_APPLICATION "cacao"

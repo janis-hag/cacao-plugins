@@ -16,38 +16,38 @@
 /* ================================================================== */
 /* ================================================================== */
 
-static uint64_t *adc_update;
-static long fpi_adc_update;
+static uint64_t *adc_synchronisation;
+static long fpi_adc_synchronisation;
 
-static uint64_t *ttm_offload;
-static long fpi_ttm_offload;
+static uint64_t *ttm_offloading;
+static long fpi_ttm_offloading;
 
 static CLICMDARGDEF farg[] =
     {
         {
             CLIARG_ONOFF,
-            ".adc_update",
-            "ADC Update ON/OFF",
+            ".adc_synchronisation",
+            "ADC synchronisation ON/OFF",
             "0",
             CLIARG_HIDDEN_DEFAULT,
-            (void **)&adc_update,
-            &fpi_adc_update,
+            (void **)&adc_synchronisation,
+            &fpi_adc_synchronisation,
         },
         {
             CLIARG_ONOFF,
-            ".ttm_offload",
-            "TTM Offload ON/OFF",
+            ".ttm_offloading",
+            "TTM offloading ON/OFF",
             "0",
             CLIARG_HIDDEN_DEFAULT,
-            (void **)&ttm_offload,
-            &fpi_ttm_offload,
+            (void **)&ttm_offloading,
+            &fpi_ttm_offloading,
         },
 };
 
 static CLICMDDATA CLIcmddata =
     {
         "dynconfig",
-        "Dynamic config of KalAO",
+        "Dynamic config of KalAO-ICS",
         CLICMD_FIELDS_DEFAULTS,
 };
 
