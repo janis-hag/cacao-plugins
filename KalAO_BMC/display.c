@@ -206,95 +206,103 @@ static errno_t compute_function() {
 
     int ii;
     float full_stroke, half_stroke, min_stroke, offset;
+    long cnt0sum;
+    long cnt0sumref = 0;
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
 
-    full_stroke = *max_stroke;
-    half_stroke = *max_stroke / 2;
+    cnt0sum = data.image[DMinID].md[0].cnt0 + data.image[TTMinID].md[0].cnt0;
 
-    for (ii = 0; ii < 10; ii++)
-        dm_array[ii] = data.image[DMinID].array.F[ii + 1] / 3.5 + half_stroke;
+    if (cnt0sum != cnt0sumref) {
+        cnt0sumref = cnt0sum;
 
-    for (; ii < 130; ii++)
-        dm_array[ii] = data.image[DMinID].array.F[ii + 2] / 3.5 + half_stroke;
+        full_stroke = *max_stroke;
+        half_stroke = *max_stroke / 2;
 
-    for (; ii < 140; ii++)
-        dm_array[ii] = data.image[DMinID].array.F[ii + 3] / 3.5 + half_stroke;
+        for (ii = 0; ii < 10; ii++)
+            dm_array[ii] = data.image[DMinID].array.F[ii + 1] / 3.5 + half_stroke;
 
-    dm_array[155] = data.image[TTMinID].array.F[0] / 5.0 + 0.5;
-    dm_array[156] = data.image[TTMinID].array.F[1] / 5.0 + 0.5;
+        for (; ii < 130; ii++)
+            dm_array[ii] = data.image[DMinID].array.F[ii + 2] / 3.5 + half_stroke;
 
-    // Prevent values to be out of range
-    for (ii = 0; ii < 140; ii++) {
-        if (dm_array[ii] > full_stroke)
-            dm_array[ii] = full_stroke;
+        for (; ii < 140; ii++)
+            dm_array[ii] = data.image[DMinID].array.F[ii + 3] / 3.5 + half_stroke;
 
-        if (dm_array[ii] < 0)
-            dm_array[ii] = 0;
-    }
+        dm_array[155] = data.image[TTMinID].array.F[0] / 5.0 + 0.5;
+        dm_array[156] = data.image[TTMinID].array.F[1] / 5.0 + 0.5;
 
-    for (; ii < 160; ii++) {
-        if (dm_array[ii] > 1)
-            dm_array[ii] = 1;
-
-        if (dm_array[ii] < 0)
-            dm_array[ii] = 0;
-    }
-
-    // Apply stroke mode
-
-    if (*stroke_mode == 1) {
-        min_stroke = 1;
-
+        // Prevent values to be out of range
         for (ii = 0; ii < 140; ii++) {
-            if (dm_array[ii] < min_stroke)
-                min_stroke = dm_array[ii];
+            if (dm_array[ii] > full_stroke)
+                dm_array[ii] = full_stroke;
+
+            if (dm_array[ii] < 0)
+                dm_array[ii] = 0;
         }
 
-        offset = min_stroke - *target_stroke;
+        for (; ii < 160; ii++) {
+            if (dm_array[ii] > 1)
+                dm_array[ii] = 1;
 
-        if (offset > 0) {
-            for (ii = 0; ii < 140; ii++)
-                dm_array[ii] -= offset;
+            if (dm_array[ii] < 0)
+                dm_array[ii] = 0;
         }
+
+        // Apply stroke mode
+
+        if (*stroke_mode == 1) {
+            min_stroke = 1;
+
+            for (ii = 0; ii < 140; ii++) {
+                if (dm_array[ii] < min_stroke)
+                    min_stroke = dm_array[ii];
+            }
+
+            offset = min_stroke - *target_stroke;
+
+            if (offset > 0) {
+                for (ii = 0; ii < 140; ii++)
+                    dm_array[ii] -= offset;
+            }
+        }
+
+        // Send command to DM
+
+        error = BMCSetArray(&dm, dm_array, map_lut);
+        if (error) {
+            printf("\nThe error %d happened while setting array for deformable mirror\n", error);
+            return error;
+        }
+
+        // Write command sent to DM
+
+        data.image[DMoutID].md[0].write = 1;
+
+        data.image[DMoutID].array.F[0] = 0;
+        data.image[DMoutID].array.F[11] = 0;
+        data.image[DMoutID].array.F[132] = 0;
+        data.image[DMoutID].array.F[143] = 0;
+
+        for (ii = 0; ii < 10; ii++)
+            data.image[DMoutID].array.F[ii + 1] = dm_array[ii];
+
+        for (; ii < 130; ii++)
+            data.image[DMoutID].array.F[ii + 2] = dm_array[ii];
+
+        for (; ii < 140; ii++)
+            data.image[DMoutID].array.F[ii + 3] = dm_array[ii];
+
+        processinfo_update_output_stream(processinfo, DMoutID);
+
+        // Write command sent to TTM
+
+        data.image[TTMoutID].md[0].write = 1;
+
+        data.image[TTMoutID].array.F[0] = dm_array[155];
+        data.image[TTMoutID].array.F[1] = dm_array[156];
+
+        processinfo_update_output_stream(processinfo, TTMoutID);
     }
-
-    // Send command to DM
-
-    error = BMCSetArray(&dm, dm_array, map_lut);
-    if (error) {
-        printf("\nThe error %d happened while setting array for deformable mirror\n", error);
-        return error;
-    }
-
-    // Write command sent to DM
-
-    data.image[DMoutID].md[0].write = 1;
-
-    data.image[DMoutID].array.F[0] = 0;
-    data.image[DMoutID].array.F[11] = 0;
-    data.image[DMoutID].array.F[132] = 0;
-    data.image[DMoutID].array.F[143] = 0;
-
-    for (ii = 0; ii < 10; ii++)
-        data.image[DMoutID].array.F[ii + 1] = dm_array[ii];
-
-    for (; ii < 130; ii++)
-        data.image[DMoutID].array.F[ii + 2] = dm_array[ii];
-
-    for (; ii < 140; ii++)
-        data.image[DMoutID].array.F[ii + 3] = dm_array[ii];
-
-    processinfo_update_output_stream(processinfo, DMoutID);
-
-    // Write command sent to TTM
-
-    data.image[TTMoutID].md[0].write = 1;
-
-    data.image[TTMoutID].array.F[0] = dm_array[155];
-    data.image[TTMoutID].array.F[1] = dm_array[156];
-
-    processinfo_update_output_stream(processinfo, TTMoutID);
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
