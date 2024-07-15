@@ -82,7 +82,7 @@ static errno_t compute_function() {
         // slopes
         imsizearray[0] = DATAPOINTS;
         imsizearray[1] = 3;
-        create_image_ID("telemetry_ttm", 2, imsizearray, _DATATYPE_DOUBLE, 1, 10, 0, &outID);
+        create_image_ID("telemetry_ttm", 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &outID);
 
         free(imsizearray);
     }
@@ -106,14 +106,13 @@ static errno_t compute_function() {
 
     timespec_get(&ts, TIME_UTC);
 
-    data.image[outID].array.D[i] = 1.0 * ts.tv_sec + 0.000000001 * ts.tv_nsec;
-    data.image[outID].array.D[DATAPOINTS + i] = data.image[TTMinID].array.F[0];
-    data.image[outID].array.D[2 * DATAPOINTS + i] = data.image[TTMinID].array.F[1];
+    data.image[outID].array.F[i] = 1.0 * ts.tv_sec + 0.000000001 * ts.tv_nsec;
+    data.image[outID].array.F[DATAPOINTS + i] = data.image[TTMinID].array.F[0];
+    data.image[outID].array.F[2 * DATAPOINTS + i] = data.image[TTMinID].array.F[1];
 
     processinfo_update_output_stream(processinfo, outID);
 
-    i += 1;
-    i %= DATAPOINTS;
+    i = (i + 1) % DATAPOINTS;
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 

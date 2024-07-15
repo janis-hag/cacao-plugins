@@ -534,9 +534,14 @@ void load_bias_and_flat(
     processinfo_update_output_stream(processinfo, flatID);
 }
 
-#define width_in 520
-#define height_in 70
-#define pixel_index(ii, jj) ((jj) + 4) * width_in + 8 * (width - (ii))
+#define WIDTH_IN 520
+#define HEIGHT_IN 70
+
+#define WIDTH 64
+#define HEIGHT 64
+
+// With parenthesis around the arguments and the expression to avoid operator precedence issues
+#define RAW_PX_INDEX(i, j) (((j) + 4) * WIDTH_IN + 8 * (WIDTH - (i)))
 
 static errno_t compute_function() {
     DEBUG_TRACE_FSTART();
@@ -544,21 +549,21 @@ static errno_t compute_function() {
     int width = 64;
     int height = 64;
 
-    FUNCTION_PARAMETER_STRUCT fps_shwfs;
+    FUNCTION_PARAMETER_STRUCT shwfs_fps;
 
     char shwfs_tmp[255];
-    char *shwfs_fps;
+    char *shwfs_proc_name;
     char *shwfs_flux_param;
 
     strcpy(shwfs_tmp, autogain_flux_param);
 
-    shwfs_fps = strtok(shwfs_tmp, ".");
+    shwfs_proc_name = strtok(shwfs_tmp, ".");
     shwfs_flux_param = strtok(NULL, ".");
 
-    function_parameter_struct_connect(shwfs_fps, &fps_shwfs, FPSCONNECT_SIMPLE);
+    function_parameter_struct_connect(shwfs_proc_name, &shwfs_fps, FPSCONNECT_SIMPLE);
 
-    float *flux = functionparameter_GetParamPtr_FLOAT32(&fps_shwfs, shwfs_flux_param);
-    long *flux_cnt0_ptr = &fps_shwfs.parray[functionparameter_GetParamIndex(&fps_shwfs, shwfs_flux_param)].cnt0;
+    float *flux = functionparameter_GetParamPtr_FLOAT32(&shwfs_fps, shwfs_flux_param);
+    long *flux_cnt0_ptr = &shwfs_fps.parray[functionparameter_GetParamIndex(&shwfs_fps, shwfs_flux_param)].cnt0;
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
 
@@ -698,7 +703,7 @@ static errno_t compute_function() {
             for (int l = 0; l < 2; l++) {
                 for (ii = 0; ii < DYNAMIC_BIAS_SIZE; ii++)
                     for (jj = 0; jj < DYNAMIC_BIAS_SIZE; jj++)
-                        bias[l * 2 + k] += data.image[inID].array.UI16[pixel_index(ii_0[k] + ii, jj_0[l] + jj)];
+                        bias[l * 2 + k] += data.image[inID].array.UI16[RAW_PX_INDEX(ii_0[k] + ii, jj_0[l] + jj)];
 
                 bias[l * 2 + k] /= DYNAMIC_BIAS_SIZE * DYNAMIC_BIAS_SIZE;
             }
@@ -710,7 +715,7 @@ static errno_t compute_function() {
 
             for (ii = 0; ii < width; ii++) {
                 for (jj = 0; jj < height; jj++) {
-                    data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[pixel_index(ii, jj)] - bias_mean) * data.image[flatID].array.F[jj * width + ii];
+                    data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[RAW_PX_INDEX(ii, jj)] - bias_mean) * data.image[flatID].array.F[jj * width + ii];
                     data.image[dynamicBiasID].array.F[jj * width + ii] = bias_mean;
                 }
             }
@@ -732,7 +737,7 @@ static errno_t compute_function() {
             for (ii = 0; ii < width; ii++) {
                 for (jj = 0; jj < height; jj++) {
                     bias_bilinear = a00 + a10 * jj + a01 * ii + a11 * jj * ii;
-                    data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[pixel_index(ii, jj)] - bias_bilinear) * data.image[flatID].array.F[jj * width + ii];
+                    data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[RAW_PX_INDEX(ii, jj)] - bias_bilinear) * data.image[flatID].array.F[jj * width + ii];
                     data.image[dynamicBiasID].array.F[jj * width + ii] = bias_bilinear;
                 }
             }
@@ -741,7 +746,7 @@ static errno_t compute_function() {
     } else {
         for (ii = 0; ii < width; ii++) {
             for (jj = 0; jj < height; jj++) {
-                data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[pixel_index(ii, jj)] - data.image[biasID].array.F[jj * width + ii]) * data.image[flatID].array.F[jj * width + ii];
+                data.image[outID].array.F[jj * width + ii] = (data.image[inID].array.UI16[RAW_PX_INDEX(ii, jj)] - data.image[biasID].array.F[jj * width + ii]) * data.image[flatID].array.F[jj * width + ii];
                 data.image[dynamicBiasID].array.F[jj * width + ii] = 0;
             }
         }
@@ -765,8 +770,11 @@ static errno_t compute_function() {
             autogain_cnt0 = data.fpsptr->parray[fpi_autogain].cnt0;
             update_exposure_parameters(autogain_params);
             flux_cnt0 = *flux_cnt0_ptr;
-        } else if ((flux_cnt0<LONG_MAX - autogain_wait_frame && * flux_cnt0_ptr> flux_cnt0 + autogain_wait_frame) || (flux_cnt0 > LONG_MAX - autogain_wait_frame && *flux_cnt0_ptr > LONG_MIN - (LONG_MAX - flux_cnt0) + autogain_wait_frame)) {
-            // Enough frames passed, accounting for wrap-around
+        } else if (*flux_cnt0_ptr < flux_cnt0) {
+            // Wrap-around or restart
+            flux_cnt0 = *flux_cnt0_ptr;
+        } else if (*flux_cnt0_ptr > flux_cnt0 + autogain_wait_frame) {
+            // Enough frames passed
             if (*emgain == max_gain && fabs(*exposuretime - min_exposuretime) < EPSILON) {
                 // We are in the intermediate gain regime
                 if (*flux > *autogain_lowgain_upper) {
@@ -800,7 +808,7 @@ static errno_t compute_function() {
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
-    function_parameter_struct_disconnect(&fps_shwfs);
+    function_parameter_struct_disconnect(&shwfs_fps);
 
     free(autogain_params);
 
