@@ -39,21 +39,14 @@ typedef struct
 
 #define MAXNB_SPOT 1000
 
-// With parenthesis around the arguments and the expression to avoid operator precedence issues
-#define RMA(n, avg, value) (((value) + (avg) * ((n)-1)) / n)
-#define EMA(c, avg, value) ((c) * (value) + (1.0 - (c)) * (avg))
-
 static char *spotcoords_fname;
 static long fpi_spotcoords_fname;
 
+static int64_t *flux_threshold;
+static long fpi_flux_threshold;
+
 static int64_t *algorithm;
 static long fpi_algorithm;
-
-static int64_t *averaging_method;
-static long fpi_averaging_method;
-
-static int64_t *averaging_length;
-static long fpi_averaging_length;
 
 static float *flux_max;
 static long fpi_flux_max;
@@ -95,26 +88,26 @@ static CLICMDARGDEF farg[] =
         },
         {
             CLIARG_INT64,
-            ".averaging_method",
-            "Moving average method (0 = Rolling, 1 = Exponential)",
-            "0",
+            ".flux_threshold",
+            "Minium flux in subaperture for slopes computation [ADU]",
+            "300",
             CLIARG_HIDDEN_DEFAULT,
-            (void **)&averaging_method,
-            &fpi_averaging_method,
+            (void **)&flux_threshold,
+            &fpi_flux_threshold,
         },
         {
-            CLIARG_INT64,
-            ".averaging_length",
-            "Moving average (equivalent) length",
-            "1000",
+            CLIARG_IMG,
+            ".wfsref",
+            "WFS reference",
+            "",
             CLIARG_HIDDEN_DEFAULT,
-            (void **)&averaging_length,
-            &fpi_averaging_length,
+            (void **)&wfsref_streamname,
+            &fpi_wfsref_streamname,
         },
         {
             CLIARG_FLOAT32,
             ".flux_avg",
-            "Avg. flux in active subapertures",
+            "Avg. flux in active subapertures [ADU]",
             "0",
             CLIARG_OUTPUT_DEFAULT,
             (void **)&flux_avg,
@@ -123,7 +116,7 @@ static CLICMDARGDEF farg[] =
         {
             CLIARG_FLOAT32,
             ".flux_max",
-            "Max. flux in active subapertures",
+            "Max. flux in active subapertures [ADU]",
             "0",
             CLIARG_OUTPUT_DEFAULT,
             (void **)&flux_max,
@@ -156,15 +149,6 @@ static CLICMDARGDEF farg[] =
             (void **)&slope_y_avg,
             &fpi_slope_y_avg,
         },
-        {
-            CLIARG_IMG,
-            ".wfsref",
-            "WFS reference",
-            "",
-            CLIARG_HIDDEN_DEFAULT,
-            (void **)&wfsref_streamname,
-            &fpi_wfsref_streamname,
-        },
 };
 
 static CLICMDDATA CLIcmddata =
@@ -191,11 +175,11 @@ static errno_t customCONFsetup() {
         data.fpsptr->parray[fpi_algorithm].val.i64[1] = 0; // min
         data.fpsptr->parray[fpi_algorithm].val.i64[2] = 1; // max
 
-        data.fpsptr->parray[fpi_averaging_length].fpflag |= FPFLAG_WRITERUN;
-        data.fpsptr->parray[fpi_averaging_length].fpflag |= FPFLAG_MINLIMIT;
-        data.fpsptr->parray[fpi_averaging_length].fpflag |= FPFLAG_MAXLIMIT;
-        data.fpsptr->parray[fpi_averaging_length].val.i64[1] = 1;       // min
-        data.fpsptr->parray[fpi_averaging_length].val.i64[2] = 1000000; // max
+        data.fpsptr->parray[fpi_flux_threshold].fpflag |= FPFLAG_WRITERUN;
+        data.fpsptr->parray[fpi_flux_threshold].fpflag |= FPFLAG_MINLIMIT;
+        data.fpsptr->parray[fpi_flux_threshold].fpflag |= FPFLAG_MAXLIMIT;
+        data.fpsptr->parray[fpi_flux_threshold].val.i64[1] = 1;     // min
+        data.fpsptr->parray[fpi_flux_threshold].val.i64[2] = 65535; // max
     }
 
     return RETURN_SUCCESS;
@@ -259,8 +243,8 @@ static errno_t compute_function() {
 
     // size of output 2D representation
     imageID inID = processinfo->triggerstreamID;
-    uint32_t sizeinX = data.image[inID].md[0].size[0];
-    uint32_t sizeinY = data.image[inID].md[0].size[1];
+    uint32_t sizeinX = data.image[inID].md->size[0];
+    uint32_t sizeinY = data.image[inID].md->size[1];
     uint32_t sizeoutX = 0;
     uint32_t sizeoutY = 0;
 
@@ -310,24 +294,42 @@ static errno_t compute_function() {
         free(imsizearray);
     }
 
-    /********** Setup and loop **********/
+    /********** Loop **********/
+
+    float new_flux_max;
+    float new_flux_avg;
+    float new_residual_rms;
+    float new_slope_x_avg;
+    float new_slope_y_avg;
+    int valid_spots;
+
+    float dx;
+    float dy;
+    float flux;
+
+    float slope_max;
+
+    if (*algorithm == 0) {
+        slope_max = 1;
+    } else {
+        slope_max = 2;
+    }
 
     processinfo_WriteMessage(processinfo, "Looping");
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
 
-    float averaging_coeff = 0;
-
-    float new_flux_max = 0;
-    float new_flux_avg = 0;
-    float new_residual_rms = 0;
-    float new_slope_x_avg = 0;
-    float new_slope_y_avg = 0;
+    new_flux_max = 0;
+    new_flux_avg = 0;
+    new_residual_rms = 0;
+    new_slope_x_avg = 0;
+    new_slope_y_avg = 0;
+    valid_spots = 0;
 
     for (int spot = 0; spot < NBspot; spot++) {
-        float dx = 0;
-        float dy = 0;
-        float flux = 0;
+        dx = 0;
+        dy = 0;
+        flux = 0;
 
         /***** Quad-cell *****/
 
@@ -420,68 +422,51 @@ static errno_t compute_function() {
 
         /***** Common part *****/
 
-        if (flux > 1) {
-            dx /= flux;
-            dy /= flux;
-        } else {
-            dx = 0;
-            dy = 0;
-        }
-
-        if (dx > 2) {
-            dx = 2;
-        } else if (dx < -2) {
-            dx = -2;
-        }
-
-        if (dy > 2) {
-            dy = 2;
-        } else if (dy < -2) {
-            dy = -2;
-        }
-
-        spotcoord[spot].dx = dx;
-        spotcoord[spot].dy = dy;
-        spotcoord[spot].flux = flux;
-
-        dx -= data.image[wfsrefID].array.F[spotcoord[spot].XYout_dx];
-        dy -= data.image[wfsrefID].array.F[spotcoord[spot].XYout_dy];
-
         if (flux > new_flux_max) {
             new_flux_max = flux;
         }
 
-        new_flux_avg += flux;
-        new_residual_rms += dx * dx + dy * dy;
-        new_slope_x_avg += dx;
-        new_slope_y_avg += dy;
+        if (flux >= *flux_threshold) {
+            dx /= flux;
+            dy /= flux;
+
+            if (dx > slope_max) {
+                dx = slope_max;
+            } else if (dx < -slope_max) {
+                dx = -slope_max;
+            }
+
+            if (dy > slope_max) {
+                dy = slope_max;
+            } else if (dy < -slope_max) {
+                dy = -slope_max;
+            }
+
+            spotcoord[spot].dx = dx;
+            spotcoord[spot].dy = dy;
+            spotcoord[spot].flux = flux;
+
+            dx -= data.image[wfsrefID].array.F[spotcoord[spot].XYout_dx];
+            dy -= data.image[wfsrefID].array.F[spotcoord[spot].XYout_dy];
+
+            new_flux_avg += flux;
+            new_residual_rms += dx * dx + dy * dy;
+            new_slope_x_avg += dx;
+            new_slope_y_avg += dy;
+            valid_spots += 1;
+        } else {
+            dx = 0;
+            dy = 0;
+
+            spotcoord[spot].dx = dx;
+            spotcoord[spot].dy = dy;
+            spotcoord[spot].flux = flux;
+        }
     }
-
-    if (*averaging_method == 0) {
-        *flux_max = RMA(*averaging_length, *flux_max, new_flux_max);
-        *flux_avg = RMA(*averaging_length, *flux_avg, new_flux_avg / NBspot);
-        *residual_rms = RMA(*averaging_length, *residual_rms, sqrt(new_residual_rms / NBspot));
-        *slope_x_avg = RMA(*averaging_length, *slope_x_avg, new_slope_x_avg / NBspot);
-        *slope_y_avg = RMA(*averaging_length, *slope_y_avg, new_slope_y_avg / NBspot);
-    } else {
-        averaging_coeff = 2 / (*averaging_length + 1);
-
-        *flux_max = EMA(averaging_coeff, *flux_max, new_flux_max);
-        *flux_avg = EMA(averaging_coeff, *flux_avg, new_flux_avg / NBspot);
-        *residual_rms = EMA(averaging_coeff, *residual_rms, sqrt(new_residual_rms / NBspot));
-        *slope_x_avg = EMA(averaging_coeff, *slope_x_avg, new_slope_x_avg / NBspot);
-        *slope_y_avg = EMA(averaging_coeff, *slope_y_avg, new_slope_y_avg / NBspot);
-    }
-
-    data.fpsptr->parray[fpi_flux_max].cnt0++;
-    data.fpsptr->parray[fpi_flux_avg].cnt0++;
-    data.fpsptr->parray[fpi_residual_rms].cnt0++;
-    data.fpsptr->parray[fpi_slope_x_avg].cnt0++;
-    data.fpsptr->parray[fpi_slope_y_avg].cnt0++;
 
     /***** Write slopes *****/
 
-    data.image[slopesID].md[0].write = 1;
+    data.image[slopesID].md->write = 1;
 
     for (int spot = 0; spot < NBspot; spot++) {
         data.image[slopesID].array.F[spotcoord[spot].XYout_dx] = spotcoord[spot].dx;
@@ -492,11 +477,33 @@ static errno_t compute_function() {
 
     /***** Write flux stream *****/
 
-    data.image[fluxID].md[0].write = 1;
+    data.image[fluxID].md->write = 1;
 
     for (int spot = 0; spot < NBspot; spot++) {
         data.image[fluxID].array.F[spotcoord[spot].fluxout] = spotcoord[spot].flux;
     }
+
+    /***** Update stats *****/
+
+    *flux_max = new_flux_max;
+
+    if (valid_spots > 0) {
+        *flux_avg = new_flux_avg / valid_spots;
+        *residual_rms = sqrt(new_residual_rms / valid_spots);
+        *slope_x_avg = new_slope_x_avg / valid_spots;
+        *slope_y_avg = new_slope_y_avg / valid_spots;
+    } else {
+        *flux_avg = 0;
+        *residual_rms = 0;
+        *slope_x_avg = 0;
+        *slope_y_avg = 0;
+    }
+
+    data.fpsptr->parray[fpi_flux_max].cnt0++;
+    data.fpsptr->parray[fpi_flux_avg].cnt0++;
+    data.fpsptr->parray[fpi_residual_rms].cnt0++;
+    data.fpsptr->parray[fpi_slope_x_avg].cnt0++;
+    data.fpsptr->parray[fpi_slope_y_avg].cnt0++;
 
     processinfo_update_output_stream(processinfo, fluxID);
 

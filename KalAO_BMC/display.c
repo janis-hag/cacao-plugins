@@ -136,6 +136,34 @@ static errno_t compute_function() {
     double *dm_array;
     int k;
 
+    /********** Open streams **********/
+
+    processinfo_WriteMessage(processinfo, "Connecting to streams");
+
+    imageID DMinID = image_ID(DMin_streamname);
+    imageID TTMinID = image_ID(TTMin_streamname);
+
+    /********** Allocate streams **********/
+
+    processinfo_WriteMessage(processinfo, "Allocating streams");
+
+    imageID DMoutID = image_ID("bmc_commands_dm");
+    imageID TTMoutID = image_ID("bmc_commands_ttm");
+
+    {
+        uint32_t *imsize = (uint32_t *)malloc(sizeof(uint32_t) * 2);
+
+        imsize[0] = 12;
+        imsize[1] = 12;
+        create_image_ID("bmc_commands_dm", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &DMoutID);
+
+        imsize[0] = 2;
+        imsize[1] = 1;
+        create_image_ID("bmc_commands_ttm", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &TTMoutID);
+
+        free(imsize);
+    }
+
     /********** Open BMC **********/
 
     processinfo_WriteMessage(processinfo, "Opening DM");
@@ -172,46 +200,18 @@ static errno_t compute_function() {
         return error;
     }
 
-    /********** Open streams **********/
-
-    processinfo_WriteMessage(processinfo, "Connecting to streams");
-
-    imageID DMinID = image_ID(DMin_streamname);
-    imageID TTMinID = image_ID(TTMin_streamname);
-
-    /********** Allocate streams **********/
-
-    processinfo_WriteMessage(processinfo, "Allocating streams");
-
-    imageID DMoutID = image_ID("bmc_commands_dm");
-    imageID TTMoutID = image_ID("bmc_commands_ttm");
-
-    {
-        uint32_t *imsize = (uint32_t *)malloc(sizeof(uint32_t) * 2);
-
-        imsize[0] = 12;
-        imsize[1] = 12;
-        create_image_ID("bmc_commands_dm", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &DMoutID);
-
-        imsize[0] = 2;
-        imsize[1] = 1;
-        create_image_ID("bmc_commands_ttm", 2, imsize, _DATATYPE_FLOAT, 1, 10, 0, &TTMoutID);
-
-        free(imsize);
-    }
-
     /********** Loop **********/
-
-    processinfo_WriteMessage(processinfo, "Looping");
 
     int ii;
     float full_stroke, half_stroke, min_stroke, offset;
     long cnt0sum;
     long cnt0sumref = 0;
 
+    processinfo_WriteMessage(processinfo, "Looping");
+
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
 
-    cnt0sum = data.image[DMinID].md[0].cnt0 + data.image[TTMinID].md[0].cnt0;
+    cnt0sum = data.image[DMinID].md->cnt0 + data.image[TTMinID].md->cnt0;
 
     if (cnt0sum != cnt0sumref) {
         cnt0sumref = cnt0sum;
@@ -276,7 +276,7 @@ static errno_t compute_function() {
 
         // Write command sent to DM
 
-        data.image[DMoutID].md[0].write = 1;
+        data.image[DMoutID].md->write = 1;
 
         data.image[DMoutID].array.F[0] = 0;
         data.image[DMoutID].array.F[11] = 0;
@@ -296,7 +296,7 @@ static errno_t compute_function() {
 
         // Write command sent to TTM
 
-        data.image[TTMoutID].md[0].write = 1;
+        data.image[TTMoutID].md->write = 1;
 
         data.image[TTMoutID].array.F[0] = dm_array[155];
         data.image[TTMoutID].array.F[1] = dm_array[156];

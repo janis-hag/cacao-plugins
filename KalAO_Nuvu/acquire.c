@@ -474,26 +474,26 @@ void load_bias_and_flat(
     } else {
         load_fits(biasfile, "nuvu_bias_tmp", 1, &biastmpID);
 
-        if (data.image[biasID].md[0].datatype != data.image[biastmpID].md[0].datatype) {
+        if (data.image[biasID].md->datatype != data.image[biastmpID].md->datatype) {
             printf("Wrong data type for bias file %s\n", biasfile);
             biastmpID = -1;
-        } else if (data.image[biasID].md[0].nelement != data.image[biastmpID].md[0].nelement) {
+        } else if (data.image[biasID].md->nelement != data.image[biastmpID].md->nelement) {
             printf("Wrong size for bias file %s\n", biasfile);
             biastmpID = -1;
         }
     }
 
-    data.image[biasID].md[0].write = 1;
+    data.image[biasID].md->write = 1;
 
     // Note: DO NOT use memset() as it will be optimized away
     if (biastmpID != -1) {
-        for (uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
+        for (uint64_t i = 0; i < data.image[biasID].md->nelement; i++)
             data.image[biasID].array.F[i] = data.image[biastmpID].array.F[i];
 
         data.fpsptr->parray[fpi_dynamic_bias].fpflag &= ~FPFLAG_ONOFF;
         data.fpsptr->parray[fpi_dynamic_bias].cnt0++;
     } else {
-        for (uint64_t i = 0; i < data.image[biasID].md[0].nelement; i++)
+        for (uint64_t i = 0; i < data.image[biasID].md->nelement; i++)
             data.image[biasID].array.F[i] = 0;
 
         data.fpsptr->parray[fpi_dynamic_bias].fpflag |= FPFLAG_ONOFF;
@@ -511,23 +511,23 @@ void load_bias_and_flat(
     } else {
         load_fits(flatfile, "nuvu_flat_tmp", 1, &flattmpID);
 
-        if (data.image[flatID].md[0].datatype != data.image[flattmpID].md[0].datatype) {
+        if (data.image[flatID].md->datatype != data.image[flattmpID].md->datatype) {
             printf("Wrong data type for flat file %s\n", flatfile);
             flattmpID = -1;
-        } else if (data.image[flatID].md[0].nelement != data.image[flattmpID].md[0].nelement) {
+        } else if (data.image[flatID].md->nelement != data.image[flattmpID].md->nelement) {
             printf("Wrong size for flat file %s\n", flatfile);
             flattmpID = -1;
         }
     }
 
-    data.image[flatID].md[0].write = 1;
+    data.image[flatID].md->write = 1;
 
     // Note: DO NOT use memset() as it will be optimized away
     if (flattmpID != -1) {
-        for (uint64_t i = 0; i < data.image[flatID].md[0].nelement; i++)
+        for (uint64_t i = 0; i < data.image[flatID].md->nelement; i++)
             data.image[flatID].array.F[i] = data.image[flattmpID].array.F[i];
     } else {
-        for (uint64_t i = 0; i < data.image[flatID].md[0].nelement; i++)
+        for (uint64_t i = 0; i < data.image[flatID].md->nelement; i++)
             data.image[flatID].array.F[i] = 1;
     }
 
@@ -548,6 +548,8 @@ static errno_t compute_function() {
 
     int width = 64;
     int height = 64;
+
+    /********** Open fps **********/
 
     FUNCTION_PARAMETER_STRUCT shwfs_fps;
 
@@ -631,10 +633,12 @@ static errno_t compute_function() {
 
     long autogain_setting_cnt0 = data.fpsptr->parray[fpi_autogain_setting].cnt0;
 
-    /********** Start camera **********/
+    /********** Loop **********/
 
     int ii, jj;
     uint64_t autogain_wait_frame;
+    uint64_t avg_samples;
+    float flux_avg = 0;
 
     processinfo_WriteMessage(processinfo, "Looping");
 
@@ -690,8 +694,8 @@ static errno_t compute_function() {
 
     /***** Write output stream *****/
 
-    data.image[outID].md[0].write = 1;
-    data.image[dynamicBiasID].md[0].write = 1;
+    data.image[outID].md->write = 1;
+    data.image[dynamicBiasID].md->write = 1;
 
     if (data.fpsptr->parray[fpi_dynamic_bias].fpflag & FPFLAG_ONOFF) {
         float bias[4] = {0, 0, 0, 0};
@@ -765,6 +769,9 @@ static errno_t compute_function() {
             autogain_wait_frame /= *exposuretime;
         }
 
+        avg_samples = autogain_wait_frame;
+        flux_avg = (flux_avg * (avg_samples - 1) + *flux) / avg_samples;
+
         if (data.fpsptr->parray[fpi_autogain].cnt0 != autogain_cnt0) {
             // Autogain was enabled
             autogain_cnt0 = data.fpsptr->parray[fpi_autogain].cnt0;
@@ -777,28 +784,28 @@ static errno_t compute_function() {
             // Enough frames passed
             if (*emgain == max_gain && fabs(*exposuretime - min_exposuretime) < EPSILON) {
                 // We are in the intermediate gain regime
-                if (*flux > *autogain_lowgain_upper) {
+                if (flux_avg > *autogain_lowgain_upper) {
                     decrease_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
-                } else if (*flux < *autogain_highgain_lower) {
+                } else if (flux_avg < *autogain_highgain_lower) {
                     increase_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
                 }
             } else if (*emgain < max_gain) {
                 // We are in the low gain regime
-                if (*flux > *autogain_lowgain_upper) {
+                if (flux_avg > *autogain_lowgain_upper) {
                     decrease_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
-                } else if (*flux < *autogain_lowgain_lower) {
+                } else if (flux_avg < *autogain_lowgain_lower) {
                     increase_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
                 }
             } else {
                 // We are in the high gain regime
-                if (*flux > *autogain_highgain_upper) {
+                if (flux_avg > *autogain_highgain_upper) {
                     decrease_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
-                } else if (*flux < *autogain_highgain_lower) {
+                } else if (flux_avg < *autogain_highgain_lower) {
                     increase_autogain(NBautogain_params);
                     flux_cnt0 = *flux_cnt0_ptr;
                 }
