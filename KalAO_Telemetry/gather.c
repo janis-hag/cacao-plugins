@@ -87,14 +87,14 @@ static errno_t compute_function() {
     processinfo_WriteMessage(processinfo, "Allocating streams");
 
     // Identifiers for output streams
-    imageID outID = image_ID("telemetry_ttm");
+    imageID outID = image_ID("kalao_telemetry");
 
     uint32_t *imsizearray = (uint32_t *)malloc(sizeof(uint32_t) * 2);
     {
         // slopes
         imsizearray[0] = DATAPOINTS;
         imsizearray[1] = 9;
-        create_image_ID("telemetry_ttm", 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &outID);
+        create_image_ID("kalao_telemetry", 2, imsizearray, _DATATYPE_FLOAT, 1, 10, 0, &outID);
 
         free(imsizearray);
     }
